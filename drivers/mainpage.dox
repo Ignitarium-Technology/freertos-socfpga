@@ -1,0 +1,31 @@
+/**
+ * @mainpage Agilex5 FreeRTOS SDK
+ * @brief FreeRTOS SDK for Agilex5 FPGA SoC <br>
+ *
+ @details
+ * This SDK is organized into the following sections:
+ * - @subpage drivers
+ * - @subpage cli
+ * - @subpage samples
+ */
+
+/**
+* @defgroup drivers Drivers
+* @brief Agilex5 Driver Implementation
+* @{
+* @}
+*/
+
+/**
+* @defgroup cli Command Line Interface
+* @brief Command Line Interface for Driver Applications
+* @{
+* @}
+*/
+
+/**
+* @defgroup samples Sample Applications
+* @brief Agilex5 Driver Sample Applications
+* @{
+* @}
+*/

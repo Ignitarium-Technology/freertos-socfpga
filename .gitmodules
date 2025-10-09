@@ -1,0 +1,24 @@
+[submodule "freertos"]
+	path = FreeRTOS/Source
+	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
+[submodule "FreeRTOS/FreeRTOS-Plus/Source/FreeRTOS-Plus-TCP"]
+	path = FreeRTOS/FreeRTOS-Plus/Source/FreeRTOS-Plus-TCP
+	url = https://github.com/FreeRTOS/FreeRTOS-Plus-TCP.git
+[submodule "tools/ATF"]
+	path = tools/ATF
+	url = https://github.com/altera-fpga/arm-trusted-firmware.git
+    branch = socfpga_v2.13.0
+[submodule "fcs_lib/libfcs"]
+	path = fcs/libfcs
+	url = https://github.com/Ignitarium-Technology/libfcs.git
+	branch = freertos-porting
+[submodule "rsu_lib/librsu"]
+	path = rsu/librsu
+	url = https://github.com/Ignitarium-Technology/librsu.git
+	branch = freertos-porting
+[submodule "tinyusb"]
+	path = tinyusb
+	url = https://github.com/Ignitarium-Technology/tinyusb.git
+[submodule "FreeRTOS/Fat-Fs"]
+	path = FreeRTOS/Fat-Fs
+	url = https://github.com/Ignitarium-Technology/Lab-Project-FreeRTOS-FAT.git
