@@ -12,7 +12,7 @@
  */
 
 /**
- * @defgroup seu_sample SEU Sample
+ * @defgroup seu_sample SEU
  * @ingroup samples
  *
  * Sample Application for SEU (Single Event Upset) Injection and Validation

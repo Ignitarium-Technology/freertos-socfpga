@@ -12,7 +12,7 @@
  */
 
 /**
- * @defgroup fpga_manager_sample FPGA manager
+ * @defgroup fpga_manager_sample FPGA Manager - Fabric Configuration
  * @ingroup samples
  *
  * Sample Application for fpga manager.

@@ -6,7 +6,7 @@ This page contains the instructions to build the complete FreeRTOS images from i
 - Arm Trusted firmware
 - FreeRTOS kernel and applications
 
-The instructions are based on GHRD design.
+The instructions are based on the GHRD design.
 
 # 1. Prerequisites
 - Altera Agilex 5 FPGA E-Series 065B Premium Development Kit, ordering code DK-A5E065BB32AES1.
@@ -25,7 +25,7 @@ The instructions are based on GHRD design.
   ccache dfu-util wget python3-dev python3-pip python3-setuptools python3-tk python3-wheel python3-venv xz-utils file libpython3-dev
   make gcc gcc-multilib g++-multilib libsdl2-dev libmagic1 libguestfs-tools  libssl-dev
 ```
-For the build process, a minimum cmake version of 3.24.0 is required. If you have an older cmake version, execute the following commands to add a non-intrusive cmake binary:
+For the build process, a minimum CMake version of 3.24.0 is required. If you have an older CMake version, execute the following commands to add a non-intrusive cmake binary:
 ```bash
   CURR_FOLDER=$PWD
   mkdir -p $HOME/bin/cmake && cd $HOME/bin/cmake
@@ -38,14 +38,18 @@ For the build process, a minimum cmake version of 3.24.0 is required. If you hav
 # 2. Setting up the environment
 
 ## 2.1 Create FreeRTOS top level Directory
+
+Create a top level directory as per your choice and set the TOP_FOLDER environment variable.
+
 ```bash
   rm -rf agilex5_rtos
   mkdir agilex5_rtos
   cd agilex5_rtos
   export TOP_FOLDER=$(pwd)
 ```
-## 2.2 Setting up the arm toolchain
-Download the compiler toolchain. Define environment variables and append the toolchain path in the environment PATH variable. So the toolchain can be used to build the binaries:
+## 2.2 Set up the ARM toolchain
+Download the compiler toolchain. Define environment variables and append the toolchain path in the environment PATH variable.
+
 ```bash
   wget https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-aarch64-none-elf.tar.xz
   tar xf arm-gnu-toolchain-14.3.rel1-x86_64-aarch64-none-elf.tar.xz
@@ -63,32 +67,33 @@ Download and install [Quartus]
   cd $TOP_FOLDER
   git clone https://github.com/altera-fpga/arm-trusted-firmware.git -b socfpga_v2.13.0 arm-trusted-firmware
 ```
-## 2.5 Clone the Agilex5 FreeRTOS repo
+## 2.5 Clone the SoC FPGA FreeRTOS SDK repo
 ```bash
   cd $TOP_FOLDER
   git clone git@github.com:Ignitarium-Technology/freertos-socfpga.git
   cd os.rtos.fpga.freertos/
   git submodule update --init --recursive
 ```
-## 2.5 Copy sof file
-  Copy the required sof file to the **$TOP_FOLDER** directory before the build process.
+## 2.5 Copy SOF file
+  Copy the required SOF file to the **$TOP_FOLDER** directory before the build process.
 
-# 3. Building RTOS application
+# 3. Building the RTOS application
 The following FreeRTOS sample applications are available to test:
 
-- hello_world: FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/hello_world/
-- cli_app: FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/cli_app/
-- main_blinky: FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/main_blinky/
-
-All the sample applications are available in the **samples/** folder
-
-Here, we will focus on building the **hello_world** application. All other applications can be built in the same manner.
+- Hello World: FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/hello_world/
+- Driver dample applications: samples/
+- CLI Application: FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/cli_app/
+- TCP/IP Applications: FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/main_freertosplus_basic/
+- FreeRTOS blinky test: FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/main_blinky/
+- FreeRTOS full test:FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/main_full/
 
 To get the list of all available applications, run the following command:
 ```bash
   cd $TOP_FOLDER/os.rtos.fpga.freertos/
   make help
 ```
+Here, we will focus on building the **hello_world** application. All the other applications can be built in the same manner.
+
 ## 3.1 Build the "hello world" application
 ```bash
   cd $TOP_FOLDER/os.rtos.fpga.freertos/
@@ -97,7 +102,7 @@ To get the list of all available applications, run the following command:
 The output(bin file) is:
 **$TOP_FOLDER/build/hello_world/freertos_hello_world.bin**
 
-# 4. Build fiptool
+# 4. Building fiptool
 ```bash
   cd $TOP_FOLDER/arm-trusted-firmware
   make fiptool
@@ -134,6 +139,7 @@ The following output files are generated from the above steps:
 - **qspi_image.jic**
 
 ## 4.2 SD boot
+
 - Apply the following patch to select SDMMC as boot source
 ```bash
   cd $TOP_FOLDER/arm-trusted-firmware
@@ -250,7 +256,9 @@ The following output files are generated from the above steps:
 # 8. Flashing the eMMC image to eMMC
 To flash eMMC image, refer to the [flash_emmc_image](https://altera-fpga.github.io/rel-24.2/embedded-designs/agilex-5/e-series/premium/boot-examples/ug-linux-boot-agx5e-premium/#boot-from-emmc)
 
-# 9. Setting up TFTP server
+NOTE: Sections **Build U-Boot**, **Create Helper JIC** and **Write eMMC Image** are relevant for FreeRTOS image.
+
+## 8.1 Setting up TFTP server
 - Install following packages on the host PC
 ```bash
   sudo apt-get update && sudo apt-get install xinetd tftpd tftp

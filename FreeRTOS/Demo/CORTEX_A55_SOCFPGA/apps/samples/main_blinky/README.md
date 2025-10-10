@@ -6,63 +6,47 @@ The dequeued message is printed in the console
 **1. Building the app**
 
 The project uses cmake to setup the build<br>
-This app adds Agilex5 FreeRTOS port as dependency
 
 **1.1 Build using standard make build system**
 
-Configure cmake build
+Configure cmake build. Specify the desired build directory.
 ```bash
-cmake -B build .
+cmake -B <build-dir> .
 ```
 Build .elf alone
 ```bash
-cmake --build build
+cmake --build <build-dir>
 ```
 Build SD image
 ```bash
-cmake --build build -t sd-image
+cmake --build <build-dir> -t sd-image
 ```
 Build qspi image
 ```bash
-cmake --build build -t qspi-image
+cmake --build <build-dir> -t qspi-image
 ```
 Build eMMC image
 ```bash
-cmake --build build -t emmc-image
+cmake --build <build-dir> -t emmc-image
 ```
 **1.2 Build using ninja build system**
 
-Configure cmake build
+Configure cmake <build-dir>
 ```bash
-cmake -B build -G Ninja
+cmake -B <build-dir> -G Ninja
 ```
 Build .elf alone
 ```bash
-ninja -C build
+ninja -C <build-dir>
 ```
 Build SD image
 ```bash
-ninja -C build sd-image
+ninja -C <build-dir> sd-image
 ```
 Build qspi image
 ```bash
-ninja -C build qspi-image
+ninja -C <build-dir> qspi-image
 ```
 Build eMMC image
 ```bash
-ninja -C build emmc-image
-```
-
-**2. Setup the sd card**
-
-Insert the sd card and find the block device path ( if the device is enumerated as /dev/mmcblk0)
-Eg:
-```bash
-    dd of=/dev/mmcblk0 if=sd.img bs=1M status=progress
-```
-
-**3. output files**
-
-after build the following can be found in the build directory
-1. sd.img : SD card image
-2. qspi_image.jic : QSPI image
+ninja -C <build-dir> emmc-image

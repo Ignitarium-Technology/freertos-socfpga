@@ -13,7 +13,7 @@
  */
 
 /**
- * @defgroup fpga_pr_sample Partial reconfiguration
+ * @defgroup fpga_pr_sample FPGA Manager - Partial Reconfiguration
  * @ingroup samples
  *
  * Sample Application for Partial Reconfiguration.
