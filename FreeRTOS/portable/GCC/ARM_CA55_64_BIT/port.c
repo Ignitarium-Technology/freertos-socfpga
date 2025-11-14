@@ -118,13 +118,13 @@
     {                                                                                       \
         portDISABLE_INTERRUPTS();                                                           \
         __asm volatile ( "msr ICC_PMR_EL1, %0\n" : : "r" ( portUNMASK_VALUE ) : "memory" ); \
-        __asm volatile ( "DSB SY		\n"                                                 \
-                         "ISB SY		\n");                                                    \
+        __asm volatile ( "DSB SY        \n"                                                 \
+                         "ISB SY        \n");                                               \
         portENABLE_INTERRUPTS();                                                            \
     }
 
 /* Hardware specifics used when sanity checking the configuration. */
-/* #define portINTERRUPT_PRIORITY_REGISTER_OFFSET		0x400UL */
+/* #define portINTERRUPT_PRIORITY_REGISTER_OFFSET       0x400UL */
 #define portINTERRUPT_PRIORITY_REGISTER_OFFSET    0x4UL
 #define portMAX_8_BIT_VALUE                       ( ( uint8_t ) 0xff )
 #define portBIT_0_SET                             ( ( uint8_t ) 0x01 )
@@ -350,7 +350,7 @@ __asm volatile ( "MRS %0, CurrentEL" : "=r" ( ulAPSR ) );
         if( ( ulRawReadICC_BPR1_EL1() & portBINARY_POINT_BITS ) <= portMAX_BINARY_POINT_VALUE )
         {
             /* Interrupts are turned off in the CPU itself to ensure a tick does
-               not execute	while the scheduler is being started.  Interrupts are
+               not execute while the scheduler is being started.  Interrupts are
                automatically turned back on in the CPU when the first task starts
                executing. */
             portDISABLE_INTERRUPTS();
@@ -446,8 +446,8 @@ void FreeRTOS_Tick_Handler( void )
        necessary to turn off interrupts in the CPU itself while the ICCPMR is being
        updated. */
     ulRawWriteICC_PMR_EL1( ( uint32_t ) ( configMAX_API_CALL_INTERRUPT_PRIORITY << portPRIORITY_SHIFT ) );
-    __asm volatile ( "dsb sy		\n"
-                     "isb sy		\n"::: "memory" );
+    __asm volatile ( "dsb sy           \n"
+                     "isb sy           \n"::: "memory" );
 
     /* Ok to enable interrupts after the interrupt source has been cleared. */
     configCLEAR_TICK_INTERRUPT();
@@ -501,8 +501,8 @@ uint32_t ulReturn;
     {
         ulReturn = pdFALSE;
         ulRawWriteICC_PMR_EL1( ( uint32_t ) ( configMAX_API_CALL_INTERRUPT_PRIORITY << portPRIORITY_SHIFT ) );
-        __asm volatile ( "dsb sy		\n"
-                         "isb sy		\n"::: "memory" );
+        __asm volatile ( "dsb sy        \n"
+                         "isb sy        \n"::: "memory" );
     }
 
     portENABLE_INTERRUPTS();

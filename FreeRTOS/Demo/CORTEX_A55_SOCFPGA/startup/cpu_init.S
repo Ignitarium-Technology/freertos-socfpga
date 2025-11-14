@@ -129,14 +129,6 @@ SwitchToEL1:
 	orr x0, x0,  #(1<<34) // E2H=1 EL2 host enable.
 	msr hcr_el2, x0
 
-	// When HCR_EL2.TGE is 0, EL1PTEN == 1 or EL1PCTEN == 1,
-    // Give access to physical timer and counter registers
-    // from lower Exception levels EL0/1, (Avoid trap to EL2)
-	mrs x1, cnthctl_el2
-	orr x1, x1,  #(1<<10) // EL1PCTEN
-	orr x1, x1,  #(1<<11) // EL1PTEN
-	msr cnthctl_el2, x1
-
 	mov x0, #0b00101      // Use the EL1 stack from EL1.
 	msr spsr_el2, x0      // M[4:0]=00101 EL1h must match HCR_EL2.RW.
 

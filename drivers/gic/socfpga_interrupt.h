@@ -63,6 +63,7 @@
 typedef enum {
     /*System PPIs*/
     PPI_START = 22, /*!<Start of Private Peripheral Interface (PPI) interrupts*/
+    EL1VIRT_TMR_INTR = 27, /*!< EL1 Phy Timer Interrupt */
     EL1PHY_TMR_INTR = 30, /*!< EL1 Phy Timer Interrupt */
     PPI_MAX = 30, /*!< Maximum PPI interrupts */
 

@@ -71,8 +71,7 @@ void interrupt_init_gic(void)
     /* Set the interrupt mask. */
     gic_reg_write_group1_end_of_interrupt(0xFF);
 
-    /* Enable interrupt groups. */
-    gic_reg_enable_group0_interrupts();
+    /* Enable group 1 interrupts (group 0 are secure interrupts). */
     gic_reg_enable_group1_interrupts();
 }
 
@@ -232,8 +231,6 @@ void interrupt_irq_handler(unsigned int interrupt_id)
         INFO("FIQ: Panic, unexpected INTID");
     }
 
-    /* Write EOIR to deactivate interrupt. */
-    gic_reg_enable_group0_interrupts();
     gic_enable_interrupts();
 
     return;
