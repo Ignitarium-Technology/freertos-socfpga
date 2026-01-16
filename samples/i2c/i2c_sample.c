@@ -110,7 +110,7 @@ void i2c_task(void)
     i2c_config_t config;
     uint16_t slave_addr;
 
-    PRINT("Sample application to write and read EEPORM using i2c driver");
+    PRINT("Sample application to write and read EEPROM using i2c driver");
 
     PRINT("Configuring the i2c as master ...");
 

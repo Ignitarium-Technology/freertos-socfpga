@@ -71,33 +71,40 @@ Download and install [Quartus]
 ```bash
   cd $TOP_FOLDER
   git clone git@github.com:Ignitarium-Technology/freertos-socfpga.git
-  cd os.rtos.fpga.freertos/
+  cd freertos-socfpga/
   git submodule update --init --recursive
 ```
-## 2.5 Copy SOF file
+## 2.6 Copy SOF file
   Copy the required SOF file to the **$TOP_FOLDER** directory before the build process.
 
 # 3. Building the RTOS application
 The following FreeRTOS sample applications are available to test:
 
-- Hello World: FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/hello_world/
-- Driver dample applications: samples/
-- CLI Application: FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/cli_app/
-- TCP/IP Applications: FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/main_freertosplus_basic/
-- FreeRTOS blinky test: FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/main_blinky/
-- FreeRTOS full test:FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/main_full/
+- Hello World: FreeRTOS/Demo/SOCFPGA/apps/hello_world/
+- Driver sample applications: samples/
+- CLI Application: FreeRTOS/Demo/SOCFPGA/apps/samples/cli_app/
+- TCP/IP Applications: FreeRTOS/Demo/SOCFPGA/apps/samples/main_freertosplus_basic/
+- FreeRTOS blinky test: FreeRTOS/Demo/SOCFPGA/apps/samples/main_blinky/
+- FreeRTOS full test:FreeRTOS/Demo/SOCFPGA/apps/samples/main_full/
 
 To get the list of all available applications, run the following command:
 ```bash
-  cd $TOP_FOLDER/os.rtos.fpga.freertos/
+  cd $TOP_FOLDER/freertos-socfpga/
   make help
 ```
 Here, we will focus on building the **hello_world** application. All the other applications can be built in the same manner.
 
 ## 3.1 Build the "hello world" application
+Make supports following configuration
+
+- CORE=[A76/A55]
+- BUILD_TYPE=[Release/Debug]
+- SOC=[AGILEX5/AGILEX3]
+
+Default config will be A55, Release and AGILEX5
 ```bash
-  cd $TOP_FOLDER/os.rtos.fpga.freertos/
-  make hello_world
+  cd $TOP_FOLDER/freertos-socfpga/
+  make hello_world CORE=A55 BUILD_TYPE=Release SOC=AGILEX5
 ```
 The output(bin file) is:
 **$TOP_FOLDER/build/hello_world/freertos_hello_world.bin**
@@ -126,9 +133,11 @@ The output(bin file) is:
   rm -rf qspi_bin && mkdir qspi_bin && cd qspi_bin
   cp $TOP_FOLDER/arm-trusted-firmware/build/agilex5/release/bl2.bin $TOP_FOLDER/qspi_bin
   aarch64-none-elf-objcopy -v -I binary -O ihex --change-addresses 0x0 bl2.bin  bl2.hex
-  $TOP_FOLDER/fiptool create --soc-fw $TOP_FOLDER/arm-trusted-firmware/build/agilex5/release/bl31.bin  --nt-fw $TOP_FOLDER/os.rtos.fpga.freertos/build/hello_world/freertos_hello_world.bin fip.bin
+  $TOP_FOLDER/fiptool create --soc-fw $TOP_FOLDER/arm-trusted-firmware/build/agilex5/release/bl31.bin  --nt-fw $TOP_FOLDER/freertos-socfpga/build/hello_world/freertos_hello_world.bin fip.bin
 ```
 - Build qspi jic image<br>
+You need to have the SOF file for your design for the next step, We assume that the SOF is in the **$TOP_FOLDER** with name "**ghrd_a5ed065bb32ae6sr0.sof**"<br>
+*Note: The steps assume the build is for Agilex 5. For Agilex 3 the pfg needs to be modified with the appropriate SOF file name*
 ```bash
   cd $TOP_FOLDER/qspi_bin
   cp $TOP_FOLDER/ghrd_a5ed065bb32ae6sr0.sof .
@@ -138,9 +147,9 @@ The output(bin file) is:
 The following output files are generated from the above steps:
 - **qspi_image.jic**
 
-## 4.2 SD boot
+## 5.2 SD boot
 
-- Apply the following patch to select SDMMC as boot source
+- Apply the following patch to the ATF code for selecting SDMMC as boot source
 ```bash
   cd $TOP_FOLDER/arm-trusted-firmware
   sed -i 's/MMC_DEVICE_TYPE[ \t]*0/MMC_DEVICE_TYPE 1/'  plat/intel/soc/agilex5/include/socfpga_plat_def.h
@@ -158,14 +167,20 @@ The following output files are generated from the above steps:
   rm -rf sd_bin && mkdir sd_bin && cd sd_bin
   cp $TOP_FOLDER/arm-trusted-firmware/build/agilex5/release/bl2.bin $TOP_FOLDER/sd_bin
   aarch64-none-elf-objcopy -v -I binary -O ihex --change-addresses 0x0 bl2.bin  bl2.hex
-  $TOP_FOLDER/fiptool create --soc-fw $TOP_FOLDER/arm-trusted-firmware/build/agilex5/release/bl31.bin  --nt-fw $TOP_FOLDER/os.rtos.fpga.freertos/build/hello_world/freertos_hello_world.bin fip.bin
+  $TOP_FOLDER/fiptool create --soc-fw $TOP_FOLDER/arm-trusted-firmware/build/agilex5/release/bl31.bin  --nt-fw $TOP_FOLDER/freertos-socfpga/build/hello_world/freertos_hello_world.bin fip.bin
 ```
 - Create qspi jic to boot from SD card
 ```bash
   cd $TOP_FOLDER/sd_bin
-  cp $TOP_FOLDER/os.rtos.fpga.freertos/tools/qspi_flash_image_agilex5_boot_sdmmc.pfg .
+  wget https://releases.rocketboards.org/2024.11/zephyr/agilex5/hps_zephyr/hello_world/qspi_boot/qspi_flash_image_agilex5_boot.pfg
+  sed \
+    -e '/^[[:space:]]*<raw_files>/,/^[[:space:]]*<\/raw_files>/d' \
+    -e '/^[[:space:]]*<partition[^>]*id="fip"[^>]*\/>[[:space:]]*$/d' \
+    -e '/^[[:space:]]*<assignment[[:space:]]\+page="0"[[:space:]]\+partition_id="fip">/,/^[[:space:]]*<\/assignment>/d' \
+    qspi_flash_image_agilex5_boot.pfg > qspi_flash_image_agilex5_sdmmc.pfg
+
   cp $TOP_FOLDER/ghrd_a5ed065bb32ae6sr0.sof .
-  quartus_pfs -c qspi_flash_image_agilex5_boot_sdmmc.pfg
+  quartus_pfg -c qspi_flash_image_agilex5_sdmmc.pfg
 
   #create core.rbf
   quartus_pfg -c -o hps_path=bl2.hex ghrd_a5ed065bb32ae6sr0.sof fsbl.sof
@@ -177,12 +192,10 @@ This will generate **qspi_image.jic** and **ghrd.core.rbf**
 - Build SD image<br>
 ```bash
   cd $TOP_FOLDER/sd_bin
-  wget https://releases.rocketboards.org/release/2020.11/gsrd/tools/make_sdimage_p3.py
-  sed -i 's/\"\-F 32\",//g' make_sdimage_p3.py
-  chmod +x make_sdimage_p3.py
+  cp $TOP_FOLDER/freertos-socfpga/tools/make_sdimage.sh .
   mkdir fatfs &&  cd fatfs
   cp ghrd.core.rbf fatfs/core.rbf
-  sudo python3 make_sdimage_p3.py -f -P fip.bin,num=2,format=raw,size=64M,type=a2 -P fatfs/*,num=1,format=fat,size=64M -s 128M -n sd.img
+  ./make_sdimage.sh -s 128 -o sd.img -p "a2:2:64:fip.bin" -p "c:1::fatfs/core.rbf"
 ```
 The following output files are generated from the above steps:
 - **sd.img** <br>
@@ -206,14 +219,20 @@ The following output files are generated from the above steps:
   rm -rf emmc_bin && mkdir emmc_bin && cd emmc_bin
   cp $TOP_FOLDER/arm-trusted-firmware/build/agilex5/release/bl2.bin $TOP_FOLDER/emmc_bin
   aarch64-none-elf-objcopy -v -I binary -O ihex --change-addresses 0x0 bl2.bin  bl2.hex
-  $TOP_FOLDER/fiptool create --soc-fw $TOP_FOLDER/arm-trusted-firmware/build/agilex5/release/bl31.bin  --nt-fw $TOP_FOLDER/os.rtos.fpga.freertos/build/hello_world/freertos_hello_world.bin fip.bin
+  $TOP_FOLDER/fiptool create --soc-fw $TOP_FOLDER/arm-trusted-firmware/build/agilex5/release/bl31.bin  --nt-fw $TOP_FOLDER/freertos-socfpga/build/hello_world/freertos_hello_world.bin fip.bin
 ```
 - Create qspi jic to boot from eMMC
 ```bash
   cd $TOP_FOLDER/emmc_bin
   cp $TOP_FOLDER/ghrd_a5ed065bb32ae6sr0.sof .
-  cp $TOP_FOLDER/os.rtos.fpga.freertos/tools/qspi_flash_image_agilex5_boot_sdmmc.pfg .
-  quartus_pfs -c qspi_flash_image_agilex5_boot_sdmmc.pfg
+  wget https://releases.rocketboards.org/2024.11/zephyr/agilex5/hps_zephyr/hello_world/qspi_boot/qspi_flash_image_agilex5_boot.pfg
+  sed \
+    -e '/^[[:space:]]*<raw_files>/,/^[[:space:]]*<\/raw_files>/d' \
+    -e '/^[[:space:]]*<partition[^>]*id="fip"[^>]*\/>[[:space:]]*$/d' \
+    -e '/^[[:space:]]*<assignment[[:space:]]\+page="0"[[:space:]]\+partition_id="fip">/,/^[[:space:]]*<\/assignment>/d' \
+    qspi_flash_image_agilex5_boot.pfg > qspi_flash_image_agilex5_sdmmc.pfg
+
+  quartus_pfg -c qspi_flash_image_agilex5_sdmmc.pfg
 
   #create core.rbf
   quartus_pfg -c -o hps_path=bl2.hex ghrd_a5ed065bb32ae6sr0.sof fsbl.sof
@@ -224,12 +243,10 @@ This will create **qspi_image.jic** and **ghrd.core.rbf**
 - Build eMMC image<br>
 ```bash
   cd $TOP_FOLDER/emmc_bin
-  wget https://releases.rocketboards.org/release/2020.11/gsrd/tools/make_sdimage_p3.py
-  sed -i 's/\"\-F 32\",//g' make_sdimage_p3.py
-  chmod +x make_sdimage_p3.py
+  cp $TOP_FOLDER/freertos-socfpga/tools/make_sdimage.sh .
   mkdir fatfs &&  cd fatfs
   cp ghrd.core.rbf fatfs/core.rbf
-  sudo python3 make_sdimage_p3.py -f -P fip.bin,num=2,format=raw,size=64M,type=a2 -P fatfs/*,num=1,format=fat,size=64M -s 128M -n sd.img
+  ./make_sdimage.sh -s 128 -o sd_emmc.img -p "a2:2:64:fip.bin" -p "c:1::fatfs/core.rbf"
 ```
 The following output files are generated from the above steps:
 - **sd.img** <br>
@@ -249,7 +266,7 @@ The following output files are generated from the above steps:
 - Insert the SD card on to the host machine
 - Use the below command to flash the image to the SD card <br>
 ```bash
-  sudo dd if=sdcard.img of=/dev/sdx bs=1M
+  sudo dd if=sd.img of=/dev/sdx bs=1M
 ```
 - Insert the SD card back onto the device and power cycle the device.
 

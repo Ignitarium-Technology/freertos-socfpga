@@ -29,7 +29,7 @@
  * @details
  * @section i3c_desc Description
  * This is a sample application to demonstrate the usage of I3C driver.
- * It uses two devices for the data transfer. The first is an I3C temparature sensor.
+ * It uses two devices for the data transfer. The first is an I3C temperature sensor.
  * And the second is a legacy I2C EEPROM.
  * The sample uses LPS27HHW temperature sensor as the I3C slave. The application reads
  * temperature from the sensor for 10 iterations.
@@ -122,7 +122,7 @@ static void fill_buffer(uint8_t *buf, uint32_t nbytes, uint8_t start_num)
 }
 
 /*
- * @brief verify buffer for the expected pattern
+ * @brief Verify buffer for the expected pattern
  */
 static int verify_buffer(uint8_t *buf, uint32_t nbytes, uint8_t start_num)
 {
@@ -182,7 +182,7 @@ int eeprom_i3c_i2c_read(uint8_t reg_address, uint8_t *data, uint32_t num_bytes)
 /*
  * @brief Write to legacy I2C EEPROM.
  *
- *    For EEPROM write one transfer transfer request is sufficient. The first
+ *    For EEPROM write one transfer request is sufficient. The first
  *    two bytes of the transfer is used to indicate the offset and the rest
  *    is the data. For write operation the 'read' flag of the transfer is
  *    set as false. To indicate that this is a legacy I2C device 'is_i2c'
@@ -220,7 +220,7 @@ int eeprom_i3c_i2c_write(uint8_t reg_address, uint8_t *data, uint8_t num_bytes)
  *    The read operation is carried out using two transfer requests. The first one is
  *    a write request to send the register address. The second request is a read
  *    transaction to get the register value. To indicate that the device is not a
- *    legacy I2C device the 'is_i2c' flag is set as flase.
+ *    legacy I2C device the 'is_i2c' flag is set as false.
  */
 int lps27hhw_read_register(uint8_t reg_address, uint8_t *data,
         uint8_t num_bytes)
@@ -303,7 +303,7 @@ void i3c_task(void)
     retval = i3c_open(I3C_INSTANCE);
     if (retval != 0)
     {
-        ERROR("i3c instance not intialized");
+        ERROR("i3c instance not initialized");
         return;
     }
 
@@ -377,7 +377,7 @@ void i3c_task(void)
             PRINT("EEPROM read and write mismatch");
         }
     }
-    PRINT("I2C test compelted.");
+    PRINT("I2C test completed.");
 #endif
     PRINT("Starting I3C test");
     /*Get the assigned dynamic address of the I3C device*/
@@ -391,7 +391,7 @@ void i3c_task(void)
     else
     {
         PRINT("Done.");
-        /* Performs read transfer of the whoam_i register of LPS27HHW device
+        /* Performs read transfer of the WHOAMI register of LPS27HHW device
          * The read is synchronous in nature*/
         reg_address = WHOAMI;
         whoam_i = 0;

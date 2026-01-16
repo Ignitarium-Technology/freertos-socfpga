@@ -13,7 +13,6 @@
 #include <stdint.h>
 #include "xhci_context.h"
 #include "xhci_rings.h"
-#include "socfpga_usb.h"
 
 #define LINK_TRB                     (6U)     /* !< Link TRB id */
 #define TRB_FIELD                    (10U)    /* !< TRB id field position */
@@ -36,6 +35,45 @@ typedef enum
     BULK_IN,            /* !< Bulk IN EP */
     INTERRUPT_IN,       /* !< Interrupt IN EP */
 }xhci_ep_type_t;
+
+/**
+ * @brief USB Standard Endpoint Descriptor.
+ *
+ * Describes an endpoint’s characteristics such as type, address, maximum packet size,
+ * and polling interval. It is used during USB enumeration to inform the host of
+ * endpoint capabilities.
+ */
+typedef struct
+{
+    uint8_t bLength;            /*!< Size of this descriptor in bytes */
+    uint8_t bDescriptorType;    /*!< ENDPOINT descriptor type (0x05) */
+    uint8_t bEndpointAddress;   /*!< The address of the endpoint on the USB device (bit 7 indicates direction: 0 = OUT, 1 = IN) */
+    uint8_t bmAttributes;       /*!< Endpoint attributes: transfer type (bits 0–1), synchronization type (bits 2–3), usage type (bits 4–5) */
+    uint16_t wMaxPacketSize;    /*!< Maximum packet size this endpoint is capable of sending or receiving */
+    uint8_t bInterval;          /*!< Interval for polling endpoint for data transfers (in frames or microframes, depending on transfer type) */
+}/*! \cond */
+__attribute__ ((packed))
+/*! \endcond */ usb_endpoint_descriptor_t;
+
+/**
+ * @brief Represents a standard USB control transfer setup packet.
+ *
+ * This structure defines the setup packet used in USB control transfers.
+ * It corresponds to the standard USB setup packet format defined by the USB specification.
+ */
+typedef struct
+{
+    uint8_t bmRequestType;   /*!< Characteristics of the request:
+                                 - Direction (bit 7)
+                                 - Type (bits 5..6)
+                                 - Recipient (bits 0..4) */
+    uint8_t bRequest;        /*!< Specific request code */
+    uint16_t wValue;         /*!< Word-sized field that varies according to request */
+    uint16_t wIndex;         /*!< Typically used to pass an index or offset (e.g., interface or endpoint) */
+    uint16_t wLength;        /*!< Number of bytes to transfer if there is a data stage */
+}/*! \cond */
+__attribute__ ((packed))
+/*! \endcond */ usb_control_request_t;
 
 /*
  * @struct  xhci_cap_reg
@@ -149,21 +187,7 @@ struct xhci_data
     xhci_op_device_context_t *op_ctx;   /* !< xHCI output context */
 
     struct xhci_device_context_array *dcbaa; /* !< dcbaa pointer array */
-    struct usb_descriptors usb_desc;   /* !< usb descriptor reference */
 };
-
-/*
- * @brief  reset the xhci host controller
- * @return
- *  0, on successful reset operation
- *  errno, incase of failure
- */
-int xhci_reset(void);
-
-/*
- * @brief  start the xhci controller
- */
-void start_xhci_controller(void);
 
 /*
  * @brief  allocate xhci context memories
@@ -264,14 +288,6 @@ xhci_oper_reg_params_t get_xhci_op_registers(void);
 int get_xhc_cap_params(struct xhci_data *xhci);
 
 /*
- * @brief  configure the CONFIG register with device slot
- * @param[in]  ptr -  reference to xhci structure
- *  errno fail, eveng ring init fails
- *  0 success
- */
-int configure_xhci_max_slots(struct xhci_data *xhci);
-
-/*
  * @brief  function to check if the pointer address passed is byte aligned
  * @param[in]  ptr -  reference to xhci strucute
  * @return
@@ -286,11 +302,6 @@ int init_xhc_event_ring(struct xhci_data *xhci_ptr);
  *  errno, incase of failure
  */
 int init_xhci_context_params(struct xhci_data *xhci_ptr);
-
-/*
- * @brief function to wait until the controller is ready to accept register write/read
- */
-void wait_for_controller_ready(void);
 
 /* Generic xhci APIS */
 
@@ -315,15 +326,28 @@ int is_ptr_mem_aligned(uint64_t addr, uint32_t byte);
 
 int xhci_parse_endpoint_descriptor(struct xhci_data *xhci_ptr,
         usb_endpoint_descriptor_t *desc);
-/*
- * @brief  display complete usb descriptors
- * @param[in] xhci_ptr reference xhci data structure
- */
-void display_usb_descriptor(struct xhci_data *xhci_ptr);
 
 /*
  * @brief Display device info
  */
 void display_xhci_device_params(struct xhci_device_data *dev_data);
+
+/*
+ * @brief  reset the xHCI controller
+ */
+int xhci_reset(void);
+
+/*
+ * @brief  start the xHCI controller
+ */
+void start_xhci_controller(void);
+
+/*
+ * @brief Initialize the xHCI registers
+ * @return
+ *  true on successful initization
+ *  false incase of failure
+ */
+bool xhci_init(struct xhci_data *xhci);
 
 #endif  /*__XHCI_H__ */

@@ -413,7 +413,7 @@ int32_t dma_setup_transfer(dma_handle_t const hdma, dma_xfer_cfg_t *xfer_list, u
 #endif
     return 0;
 }
-int32_t dma_start_tranfer(dma_handle_t const hdma)
+int32_t dma_start_transfer(dma_handle_t const hdma)
 {
     uint64_t val;
     if (hdma == NULL)
@@ -485,67 +485,6 @@ int32_t dma_stop_transfer(dma_handle_t const hdma)
     return 0;
 }
 
-int32_t dma_suspend_transfer(dma_handle_t const hdma)
-{
-    uint64_t val;
-    uint32_t count = 0U;
-
-    if (hdma == NULL)
-    {
-        ERROR("DMAC handle cannot be NULL ");
-        return -EINVAL;
-    }
-    if (hdma->channel_state != DMA_CH_ACTIVE)
-    {
-        ERROR("Only Active channel can be suspended ");
-        return -EIO;
-    }
-
-    val = RD_REG64(hdma->base_address + DMA_DMAC_CHENREG);
-    val |= (0x1UL << (hdma->channel_num + CHENREG_CH_SUSP_WE_POS)) |
-            (0x1UL << (hdma->channel_num + CHENREG_CH_SUSP_POS));
-    WR_REG64(hdma->base_address + DMA_DMAC_CHENREG, val);
-
-    while ((dma_get_channel_status(hdma) != DMA_CH_SUSPENDED) && count <
-            CH_SUSPEND_TIMEOUT_COUNT)
-    {
-        count++;
-    }
-    if (count >= CH_SUSPEND_TIMEOUT_COUNT)
-    {
-        ERROR("DMAC Channel is in active state ");
-        return -EBUSY;
-    }
-    hdma->channel_state = DMA_CH_SUSPENDED;
-    return 0;
-}
-
-int32_t dma_resume_transfer(dma_handle_t const hdma)
-{
-    uint64_t val;
-    if (hdma == NULL)
-    {
-        ERROR("DMAC handle cannot be NULL ");
-        return -EINVAL;
-    }
-    if (hdma->channel_state != DMA_CH_SUSPENDED)
-    {
-        ERROR("Only Suspended DMAC Channel can be resumed.");
-        return -EBUSY;
-    }
-
-    val = RD_REG64(hdma->base_address + DMA_DMAC_CHENREG);
-    /*Disable supended state*/
-    val |= (0x1UL << (hdma->channel_num + CHENREG_CH_SUSP_WE_POS));
-    val &= (~(0x1UL << (hdma->channel_num + CHENREG_CH_SUSP_POS)));
-    /*Enable the channel to resume*/
-    val |= ((1UL << hdma->channel_num) | ((0x1UL << (hdma->channel_num +
-            CHENREG_CH_EN_WE_POS))));
-
-    WR_REG64(hdma->base_address + DMA_DMAC_CHENREG, val);
-    hdma->channel_state = DMA_CH_ACTIVE;
-    return 0;
-}
 
 int32_t dma_close(dma_handle_t const hdma)
 {

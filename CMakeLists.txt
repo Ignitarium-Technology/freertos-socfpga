@@ -4,6 +4,22 @@ set(FREERTOS_TOP_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(ARCH freertos_aarch64)
 include(FetchContent)
 
+if(NOT(SOC STREQUAL "AGILEX3" OR SOC STREQUAL "AGILEX5"))
+    message(STATUS "Defaulting SOC to AGILEX5.")
+    set(SOC "AGILEX5" CACHE STRING "Choose the SOC." FORCE)
+endif()
+
+if(SOC STREQUAL "AGILEX5")
+    if(NOT(CORE STREQUAL "A55" OR CORE STREQUAL "A76"))
+        message(STATUS "Defaulting boot core to CORTEX A55.")
+        set(CORE "A55" CACHE STRING "Choose the boot core." FORCE)
+    endif()
+    add_compile_definitions(AGILEX5)
+elseif(SOC STREQUAL "AGILEX3")
+    set(CORE "A55" CACHE STRING "Only A55 core." FORCE)
+    add_compile_definitions(AGILEX3)
+endif()
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/tools/target_socfpga.cmake)
 
 find_program(TOOLCHAIN ${CMAKE_C_COMPILER} NO_CACHE)
@@ -12,7 +28,7 @@ if(NOT TOOLCHAIN)
     message(FATAL_ERROR "${Red}Export toolchain path and run cmake again... ${colourReset}")
 endif()
 
-# Default to Debug build type
+# Default to Release build type
 if(NOT CMAKE_BUILD_TYPE)
     message(STATUS "Defaulting build type to Release.")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
@@ -25,6 +41,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     set(CMAKE_C_FLAGS_RELEASE "" CACHE STRING "Release flags" FORCE)
 endif()
 
+message(STATUS "SOC : ${SOC}")
+message(STATUS "Core : ${CORE}")
 message(STATUS "Build Type : ${CMAKE_BUILD_TYPE}")
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/tools/socfpga_build.cmake)

@@ -4,7 +4,6 @@ target_sources(socfpga_drivers PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/dwc3/dwc3.c
     ${CMAKE_CURRENT_SOURCE_DIR}/dwc3/dwc3_ll.c
     ${USB_HOST_SRCS}
-    ${CMAKE_CURRENT_SOURCE_DIR}/socfpga_usb.c
     )
 
 target_include_directories(socfpga_drivers PUBLIC

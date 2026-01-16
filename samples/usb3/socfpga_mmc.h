@@ -21,8 +21,8 @@
 #define MOUNT_POINT        "/drive"
 
 /*
- * @enum  : media_source
- * @brief : enum to specify the various storage mediums to load bitstream
+ * @enum  media_source
+ * @brief enum to specify the various storage mediums to load bitstream
  */
 typedef enum media_source
 {
@@ -33,14 +33,11 @@ typedef enum media_source
 }media_source_t;
 
 /*
- * @func  : get_bitstream
- * @brief : function to get the bitstream reference and file size
+ * @brief Function to get the bitstream reference and file size
  * @param[in] media_src bitstream file source
- * @param[in] rbf_name name of the bitstream
- * @param[in] file_size reference to length of the bitstream file
- * @param[out] file_size returns the length of the bitstream file
- * @return
- *  reference to bitstream pointer
+ * @param[in] file_name name of the bitstream file
+ * @param[in,out] file_size pointer to length of the bitstream file (input: reference, output: returns the length)
+ * @return reference to bitstream pointer
  */
 uint8_t *mmc_read_file(media_source_t media_src, const char *file_name,
         uint32_t *file_size);

@@ -1,1 +1,1 @@
-add_subdirectory(GCC/ARM_CA55_64_BIT)
+add_subdirectory(GCC/ARM_AARCH64)

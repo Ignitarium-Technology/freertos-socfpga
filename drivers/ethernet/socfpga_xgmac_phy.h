@@ -9,14 +9,25 @@
 #ifndef __SOCFPGA_XGMAC_PHY_H__
 #define __SOCFPGA_XGMAC_PHY_H__
 
-
+#include "socfpga_xgmac.h"
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-#include "socfpga_xgmac.h"
-#include "socfpga_xgmac_phy_ll.h"
-
+/* Modes and speed */
+#define ETH_FULL_DUPLEX 1U
+#define ETH_HALF_DUPLEX 2U
+#define ETH_SPEED_1000_MBPS 1000U
+#define ETH_SPEED_100_MBPS 100U
+#define ETH_SPEED_10_MBPS 10U
+#define ETH_PHY_IF_RGMII 1U
+#define ETH_PHY_IF_SGMII 2U
+#define ETH_ENABLE_AUTONEG 1U
+#define ETH_DISABLE_AUTONEG 0U
+#define ETH_ADVERTISE_ALL 1U
+#define ETH_ADVERTISE_ALL_TX_FULLDPLX 2U
+#define ETH_ADVERTISE_ALL_TX_HALFDPLX 4U
 
 /*
  * @brief  Configuration structure for XGMAC PHY Parameters
@@ -88,8 +99,17 @@ int32_t xgmac_cfg_speed_mode(xgmac_handle_t hxgmac, xgmac_phy_config_t *pphy_con
  */
 int32_t xgmac_update_xgmac_speed_mode(xgmac_handle_t hxgmac, xgmac_phy_config_t *pphy_config);
 
-
-
+/**
+ * @brief Return the current link status of the phy.
+ *
+ * @param[in] base_address The base address of the XGMAC registers.
+ * @param[in] pphy_config The handle containing PHY configuration.
+ *
+ * @return
+ * - true, when phy link is up
+ * - false, when phy link is down
+ */
+BaseType_t phy_get_link_status(uint32_t base_address, xgmac_phy_config_t *pphy_config);
 
 #ifdef __cplusplus
 }

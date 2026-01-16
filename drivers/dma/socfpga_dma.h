@@ -332,7 +332,7 @@ int32_t dma_setup_transfer(dma_handle_t const hdma, dma_xfer_cfg_t *xfer_list, u
  * - -EBUSY:  if another transfer is in progress.
  *
  */
-int32_t dma_start_tranfer(dma_handle_t const hdma);
+int32_t dma_start_transfer(dma_handle_t const hdma);
 
 /**
  * @brief Stop a data transfer in progress
@@ -349,35 +349,6 @@ int32_t dma_start_tranfer(dma_handle_t const hdma);
  */
 int32_t dma_stop_transfer(dma_handle_t const hdma);
 
-/**
- * @brief Suspend a data transfer in progress
- *
- * This will suspend a data transfer which is in progress
- *
- * @param[in] hdma Handle to the channel returned by the Open()
- *
- * @return
- * - 0, on success
- * - -EINVAL: if hdma is NULL
- * - -EIO:    if no data trasnfer is in progress
- * - -EBUSY:  if it fails to suspend the data transfer
- */
-int32_t dma_suspend_transfer(dma_handle_t const hdma);
-
-/**
- * @brief Resume a suspended data transfer
- *
- * This will resume a suspended data transfer
- *
- * @param[in] hdma Handle to the channel returned by the Open()
- *
- * @return
- * - 0, on success
- * - -EINVAL: if hdma is NULL
- * - -EIO:    if it fails to resume the data transfer
- * - -EBUSY:  if it is not in a suspended state
- */
-int32_t dma_resume_transfer(dma_handle_t const hdma);
 
 /**
  * @brief Close the dma channel

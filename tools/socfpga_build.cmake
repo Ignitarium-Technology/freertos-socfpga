@@ -10,6 +10,49 @@ set(SD_ARTIFACTS_DIR "${CMAKE_BINARY_DIR}/sd_atf_binaries" CACHE STRING "Path to
 set(EMMC_ARTIFACTS_DIR "${CMAKE_BINARY_DIR}/emmc_atf_binaries" CACHE STRING "Path to eMMC artifacts directory")
 set(QSPI_ARTIFACTS_DIR "${CMAKE_BINARY_DIR}/qspi_atf_binaries" CACHE STRING "Path to QSPI artifacts directory")
 
+#Create a cmake file to edit the ATF MACRO
+set(_mmc_patch_script "${CMAKE_BINARY_DIR}/patch_mmc_device_type.cmake")
+file(WRITE "${_mmc_patch_script}" [=[
+if(NOT DEFINED INPUT_FILE)
+  message(FATAL_ERROR "INPUT_FILE not provided")
+endif()
+
+if(NOT DEFINED TYPE)
+  message(FATAL_ERROR "TYPE not provided (use SD or EMMC)")
+endif()
+
+if(NOT EXISTS "${INPUT_FILE}")
+  message(FATAL_ERROR "File does not exist: ${INPUT_FILE}")
+endif()
+
+string(TOUPPER "${TYPE}" _type)
+
+if(_type STREQUAL "EMMC")
+  set(_mmc_val "0")
+elseif(_type STREQUAL "SD")
+  set(_mmc_val "1")
+else()
+  message(FATAL_ERROR "Invalid TYPE='${TYPE}'. Expected SD or EMMC")
+endif()
+
+file(READ "${INPUT_FILE}" _content)
+
+# Replace any existing MMC_DEVICE_TYPE <num> to desired value
+string(REGEX REPLACE
+  "MMC_DEVICE_TYPE[ \t]*[0-9]+"
+  "MMC_DEVICE_TYPE ${_mmc_val}"
+  _content
+  "${_content}"
+)
+
+file(WRITE "${INPUT_FILE}" "${_content}")
+
+message(STATUS "Set MMC_DEVICE_TYPE=${_mmc_val} (${_type}) in: ${INPUT_FILE}")
+]=])
+
+#extract ATF platform from SOC
+string(TOLOWER ${SOC} ATF_PLAT)
+
 add_custom_command(
     OUTPUT ${ATF_BUILD_COPY_DIR}/atf.copy_done
     COMMAND ${CMAKE_COMMAND} -E make_directory ${ATF_BUILD_COPY_DIR}
@@ -28,10 +71,10 @@ endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(ATF_DEBUG_FLAG "1")
-    set(ATF_BUILD_DIR "${ATF_BUILD_COPY_DIR}/build/agilex5/debug/")
+    set(ATF_BUILD_DIR "${ATF_BUILD_COPY_DIR}/build/${ATF_PLAT}/debug/")
 else()
     set(ATF_DEBUG_FLAG "0")
-    set(ATF_BUILD_DIR "${ATF_BUILD_COPY_DIR}/build/agilex5/release/")
+    set(ATF_BUILD_DIR "${ATF_BUILD_COPY_DIR}/build/${ATF_PLAT}/release/")
 endif()
 
 message(STATUS "ATF Log Level : ${ATF_LOG_LEVEL}")
@@ -39,8 +82,13 @@ message(STATUS "ATF Log Level : ${ATF_LOG_LEVEL}")
 # Add custom target to build ATF
 add_custom_target(
     atf-bl2-bl31-qspi
-    COMMAND make -C ${ATF_BUILD_COPY_DIR} PLAT=agilex5 clean
-    COMMAND make -C ${ATF_BUILD_COPY_DIR} CROSS_COMPILE=${CC_PREFIX} PLAT=agilex5 SOCFPGA_BOOT_SOURCE_QSPI=1 bl2 bl31 PRELOADED_BL33_BASE=0x82000000 LOG_LEVEL=${ATF_LOG_LEVEL} DEBUG=${ATF_DEBUG_FLAG} -j${CMAKE_BUILD_PARALLEL_LEVEL}
+    COMMAND make -C ${ATF_BUILD_COPY_DIR} PLAT=${ATF_PLAT} clean
+    COMMAND make -C ${ATF_BUILD_COPY_DIR}
+        CROSS_COMPILE=${CC_PREFIX}
+        PLAT=${ATF_PLAT} SOCFPGA_BOOT_SOURCE_QSPI=1 bl2 bl31
+        PRELOADED_BL33_BASE=0x82000000
+        LOG_LEVEL=${ATF_LOG_LEVEL} DEBUG=${ATF_DEBUG_FLAG}
+        -j${CMAKE_BUILD_PARALLEL_LEVEL}
     COMMAND ${CMAKE_COMMAND} -E make_directory "${QSPI_ARTIFACTS_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ATF_BUILD_DIR}/bl31.bin ${QSPI_ARTIFACTS_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ATF_BUILD_DIR}/bl2.bin ${QSPI_ARTIFACTS_DIR}
@@ -49,11 +97,25 @@ add_custom_target(
     DEPENDS copy_atf
 )
 
+if(ATF_PLAT STREQUAL "agilex5")
+    set(ATF_PLAT_DEF_FILE ${ATF_BUILD_COPY_DIR}/plat/intel/soc/agilex5/include/socfpga_plat_def.h)
+else()
+    set(ATF_PLAT_DEF_FILE ${ATF_BUILD_COPY_DIR}/plat/altera/soc/agilex3/include/socfpga_plat_def.h)
+endif()
+
 add_custom_target(
     atf-bl2-bl31-sd
-    COMMAND sed -i 's/MMC_DEVICE_TYPE[ \t]*0/MMC_DEVICE_TYPE 1/'  ${ATF_BUILD_COPY_DIR}/plat/intel/soc/agilex5/include/socfpga_plat_def.h
-    COMMAND make -C ${ATF_BUILD_COPY_DIR} PLAT=agilex5 clean
-    COMMAND make -C ${ATF_BUILD_COPY_DIR} CROSS_COMPILE=${CC_PREFIX} PLAT=agilex5 bl2 bl31 PRELOADED_BL33_BASE=0x82000000 LOG_LEVEL=${ATF_LOG_LEVEL} DEBUG=${ATF_DEBUG_FLAG} -j${CMAKE_BUILD_PARALLEL_LEVEL}
+    COMMAND ${CMAKE_COMMAND}
+        -DINPUT_FILE="${ATF_PLAT_DEF_FILE}"
+        -DTYPE="SD"
+        -P "${_mmc_patch_script}"
+    COMMAND make -C ${ATF_BUILD_COPY_DIR} PLAT=${ATF_PLAT} clean
+    COMMAND make -C ${ATF_BUILD_COPY_DIR}
+        CROSS_COMPILE=${CC_PREFIX}
+        PLAT=${ATF_PLAT} bl2 bl31
+        PRELOADED_BL33_BASE=0x82000000
+        LOG_LEVEL=${ATF_LOG_LEVEL} DEBUG=${ATF_DEBUG_FLAG}
+        -j${CMAKE_BUILD_PARALLEL_LEVEL}
     COMMAND ${CMAKE_COMMAND} -E make_directory "${SD_ARTIFACTS_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ATF_BUILD_DIR}/bl31.bin ${SD_ARTIFACTS_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ATF_BUILD_DIR}/bl2.bin ${SD_ARTIFACTS_DIR}
@@ -64,9 +126,17 @@ add_custom_target(
 
 add_custom_target(
     atf-bl2-bl31-emmc
-    COMMAND sed -i 's/MMC_DEVICE_TYPE[ \t]*1/MMC_DEVICE_TYPE 0/'  ${ATF_BUILD_COPY_DIR}/plat/intel/soc/agilex5/include/socfpga_plat_def.h
-    COMMAND make -C ${ATF_BUILD_COPY_DIR} PLAT=agilex5 clean
-    COMMAND make -C ${ATF_BUILD_COPY_DIR} CROSS_COMPILE=${CC_PREFIX} PLAT=agilex5 bl2 bl31 PRELOADED_BL33_BASE=0x82000000 LOG_LEVEL=${ATF_LOG_LEVEL} DEBUG=${ATF_DEBUG_FLAG} -j${CMAKE_BUILD_PARALLEL_LEVEL}
+    COMMAND ${CMAKE_COMMAND}
+        -DINPUT_FILE="${ATF_PLAT_DEF_FILE}"
+        -DTYPE="EMMC"
+        -P "${_mmc_patch_script}"
+    COMMAND make -C ${ATF_BUILD_COPY_DIR} PLAT=${ATF_PLAT} clean
+    COMMAND make -C ${ATF_BUILD_COPY_DIR}
+        CROSS_COMPILE=${CC_PREFIX}
+        PLAT=${ATF_PLAT} bl2 bl31
+        PRELOADED_BL33_BASE=0x82000000
+        LOG_LEVEL=${ATF_LOG_LEVEL} DEBUG=${ATF_DEBUG_FLAG}
+        -j${CMAKE_BUILD_PARALLEL_LEVEL}
     COMMAND ${CMAKE_COMMAND} -E make_directory "${EMMC_ARTIFACTS_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ATF_BUILD_DIR}/bl31.bin ${EMMC_ARTIFACTS_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ATF_BUILD_DIR}/bl2.bin ${EMMC_ARTIFACTS_DIR}
@@ -127,12 +197,16 @@ if(QUARTUS_PFG_EXECUTABLE)
     endif()
 endif()
 
-set(SOCFPGA_SOF_FILE "ghrd_a5ed065bb32ae6sr0.sof" CACHE STRING "Name of the SOF file to be used for the FPGA")
-set(SOCFPGA_PFG_FILE "qspi_flash_image_agilex5_boot.pfg" CACHE STRING "Name of the PFG file to be used for the FPGA")
+get_filename_component(SOCFPGA_SOF_FILE ${SOF_PATH} NAME)
+set(SOCFPGA_SOF_FILE ${SOCFPGA_SOF_FILE} CACHE STRING "Name of the SOF file to be used for the FPGA")
 
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/${SOCFPGA_SOF_FILE}
-    COMMAND /bin/sh -c "if [ ! -f '${SOF_PATH}' ]; then echo '${SOF_PATH} does not exist';exit 1; else echo '${SOF_PATH} exists, copying to build directory'; cp '${SOF_PATH}' ${CMAKE_BINARY_DIR}/${SOCFPGA_SOF_FILE}; fi"
+    OUTPUT  "${CMAKE_BINARY_DIR}/${SOCFPGA_SOF_FILE}"
+    COMMAND ${CMAKE_COMMAND} -E echo "Checking SOF file: ${SOF_PATH}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${SOF_PATH}"
+            "${CMAKE_BINARY_DIR}/${SOCFPGA_SOF_FILE}"
+    DEPENDS "${SOF_PATH}"
     VERBATIM
 )
 
@@ -140,15 +214,19 @@ add_custom_target(get_sof_file
     DEPENDS ${CMAKE_BINARY_DIR}/${SOCFPGA_SOF_FILE}
 )
 
-add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/${SOCFPGA_PFG_FILE}
-    COMMAND /bin/sh -c "if [ ! -f '${PFG_PATH}' ]; then echo '${PFG_PATH} does not exist. Use the default pfg file.';cp '${TOOL_DIR}/${SOCFPGA_PFG_FILE}' ${CMAKE_BINARY_DIR}/; else echo '${PFG_PATH} exists, skipping download'; cp '${PFG_PATH}' ${CMAKE_BINARY_DIR}/${SOCFPGA_PFG_FILE}; fi"
+add_custom_target(get_sd_pfg_file
+    COMMAND ${CMAKE_COMMAND} -E echo "Checking PFG_SDMMC file: ${PFG_SDMMC}"
+    COMMAND ${CMAKE_COMMAND} -E compare_files "${PFG_SDMMC}" "${PFG_SDMMC}"
+    DEPENDS "${PFG_SDMMC}"
     VERBATIM
 )
 
-add_custom_target(get_pfg_file
-        DEPENDS ${CMAKE_BINARY_DIR}/${SOCFPGA_PFG_FILE}
-    )
+add_custom_target(get_qspi_pfg_file
+    COMMAND ${CMAKE_COMMAND} -E echo "Checking PFG_QSPI file: ${PFG_QSPI}"
+    COMMAND ${CMAKE_COMMAND} -E compare_files "${PFG_QSPI}" "${PFG_QSPI}"
+    DEPENDS "${PFG_QSPI}"
+    VERBATIM
+)
 
 function(add_sd_image executable_name)
     if(executable_name MATCHES "\\.elf$")
@@ -176,13 +254,13 @@ function(add_sd_image executable_name)
         COMMAND ${QUARTUS_PFG_EXECUTABLE} -c fsbl.sof ghrd.rbf -o hps=ON -o hps_path=bl2.hex
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/fatfs"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SD_ARTIFACTS_DIR}/ghrd.core.rbf ${CMAKE_BINARY_DIR}/fatfs/core.rbf
-        COMMAND sudo python3 ${TOOL_DIR}/make_sdimage_p3.py -f -P fip.bin,num=2,format=raw,size=64M,type=a2 -P ${CMAKE_BINARY_DIR}/fatfs/*,num=1,format=fat,size=64M -s 128M -n sd.img
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TOOL_DIR}/qspi_flash_image_agilex5_boot_sdmmc.pfg ${SD_ARTIFACTS_DIR}
-        COMMAND ${QUARTUS_PFG_EXECUTABLE} -c ${SD_ARTIFACTS_DIR}/qspi_flash_image_agilex5_boot_sdmmc.pfg
+        COMMAND ${TOOL_DIR}/make_sdimage.sh -s 128 -o sd.img -p "a2:2:64:fip.bin" -p "c:1::../fatfs/core.rbf"
+        COMMAND ${QUARTUS_PFG_EXECUTABLE} -c ${PFG_SDMMC}
         WORKING_DIRECTORY ${SD_ARTIFACTS_DIR}
         DEPENDS ${executable_name}
                 ${BIN_FILE}
                 get_sof_file
+                get_sd_pfg_file
                 atf-bl2-bl31-sd
                 atf-fiptool
                 ${QUARTUS_PFG_EXECUTABLE}
@@ -200,13 +278,13 @@ function(add_sd_image executable_name)
         COMMAND ${QUARTUS_PFG_EXECUTABLE} -c fsbl.sof ghrd.rbf -o hps=ON -o hps_path=bl2.hex
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/fatfs"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EMMC_ARTIFACTS_DIR}/ghrd.core.rbf ${CMAKE_BINARY_DIR}/fatfs/core.rbf
-        COMMAND sudo python3 ${TOOL_DIR}/make_sdimage_p3.py -f -P fip.bin,num=2,format=raw,size=64M,type=a2 -P ${CMAKE_BINARY_DIR}/fatfs/*,num=1,format=fat,size=64M -s 128M -n sd_emmc.img
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TOOL_DIR}/qspi_flash_image_agilex5_boot_sdmmc.pfg ${EMMC_ARTIFACTS_DIR}
-        COMMAND ${QUARTUS_PFG_EXECUTABLE} -c ${EMMC_ARTIFACTS_DIR}/qspi_flash_image_agilex5_boot_sdmmc.pfg
+        COMMAND ${TOOL_DIR}/make_sdimage.sh -s 128 -o sd_emmc.img -p "a2:2:64:fip.bin" -p "c:1::../fatfs/core.rbf"
+        COMMAND ${QUARTUS_PFG_EXECUTABLE} -c ${PFG_SDMMC}
         WORKING_DIRECTORY ${EMMC_ARTIFACTS_DIR}
         DEPENDS ${executable_name}
                 ${BIN_FILE}
                 get_sof_file
+                get_sd_pfg_file
                 atf-bl2-bl31-emmc
                 atf-fiptool
                 ${QUARTUS_PFG_EXECUTABLE}
@@ -214,7 +292,7 @@ function(add_sd_image executable_name)
     )
 endfunction()
 
-function(add_qspi_image executable_name pfg_file sof_file)
+function(add_qspi_image executable_name)
     if(executable_name MATCHES "\\.elf$")
         string(REGEX REPLACE "\\.elf$" ".bin" BIN_FILE "${executable_name}")
     else()
@@ -228,12 +306,12 @@ function(add_qspi_image executable_name pfg_file sof_file)
 
     add_custom_target(
         qspi-image
-        COMMAND ${CMAKE_COMMAND} -E echo "${Yellow}Using pfg file : ${CMAKE_BINARY_DIR}/${SOCFPGA_PFG_FILE} ${ColourReset}"
+        COMMAND ${CMAKE_COMMAND} -E echo "${Yellow}Using pfg file : ${PFG_QSPI} ${ColourReset}"
         COMMAND ${CMAKE_COMMAND} -E echo "${Yellow}Using sof file : ${CMAKE_BINARY_DIR}/${SOCFPGA_SOF_FILE} ${ColourReset}"
         COMMAND ${FIPTOOL_BIN} create --soc-fw ${BL31_BIN} --nt-fw ${CMAKE_CURRENT_BINARY_DIR}/${BIN_FILE} ${QSPI_ARTIFACTS_DIR}/${FIP_FILE}
         COMMAND ${CMAKE_OBJCOPY} -I binary -O ihex --change-addresses 0x0 ${BL2_BIN} bl2.hex
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_BINARY_DIR}/${SOCFPGA_SOF_FILE} ${QSPI_ARTIFACTS_DIR}/${SOCFPGA_SOF_FILE}
-        COMMAND ${QUARTUS_PFG_EXECUTABLE} -c ${CMAKE_BINARY_DIR}/${SOCFPGA_PFG_FILE}
+        COMMAND ${QUARTUS_PFG_EXECUTABLE} -c ${PFG_QSPI}
         COMMENT "Generating core.rbf from sof"
         COMMAND ${QUARTUS_PFG_EXECUTABLE} -c -o hps_path=bl2.hex ${CMAKE_BINARY_DIR}/${SOCFPGA_SOF_FILE} fsbl.sof
         COMMAND ${QUARTUS_PFG_EXECUTABLE} -c fsbl.sof ghrd.rbf -o hps=ON -o hps_path=bl2.hex
@@ -241,7 +319,7 @@ function(add_qspi_image executable_name pfg_file sof_file)
         DEPENDS ${executable_name}
                 ${BIN_FILE}
                 get_sof_file
-                get_pfg_file
+                get_qspi_pfg_file
                 atf-bl2-bl31-qspi
                 atf-fiptool
                 ${QUARTUS_PFG_EXECUTABLE}

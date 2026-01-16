@@ -23,7 +23,7 @@
  * The names of the corresponding keys and their corresponding key IDs should be changed in the sample.
  *
  * @section fcs_param Configurable Parameters
- * - All key names can be configured at their corrseponding macros
+ * - All key names can be configured at their corresponding macros
  * - All key IDs can be configured at their corresponding macros
  * - Modes of operation can also be configured for ECC related cryptographic functions
  * - Input size can be configured in @c INPUT_DATA_SIZE macro
@@ -31,7 +31,7 @@
  * @section fcs_howto How to Run
  * 1. Follow the common README for build and flashing instructions.
  * 2. Copy all the required key files to the SD card.
- * 3. Ensure key ID matches the keys in the SD card. Change the corresponding macros if it doesnt.
+ * 3. Ensure key ID matches the keys in the SD card. Change the corresponding macros if it doesn't.
  * 4. Run the sample.
  *
  * @section fcs_res Expected Results
@@ -654,7 +654,7 @@ void fcs_task()
     int ret;
     char sess_uuid[FCS_UUID_SIZE];
     PRINT("FCS Sample");
-    PRINT("Initialising libFCS");
+    PRINT("Initializing libFCS");
     /* Initialise libfcs with a log level */
     ret = libfcs_init("log_off");
 

@@ -528,6 +528,11 @@ int32_t xgmac_refill_rx_descriptor(xgmac_handle_t hxgmac, uint8_t *buf)
 
         hxgmac->prx_dma_buf1_ap[head_indx] = (uint8_t *)buf;
     }
+    /*
+     * There is a possibility that the buffer is cached in L1 but not in L4.
+     * Since the peripherals use L4 cache, it could see stale data
+     */
+     xgmac_flush_buffer(buf, XGMAC_MAX_PACKET_SIZE);
 
     /* Release descriptors to DMA */
     pdma_rx_desc->des2 = 0;

@@ -20,18 +20,18 @@
  * @details
  * @section bridge_desc Description
  * This is a sample application to demonstrate the hps-fpga bridge driver. In this sample application,
- * only the hps2fpga and lwhps2fpga bridges are demonstrated. Remaning bridges can also be used in the
- * same way. The sample can be devided into two sections as below :-
+ * only the hps2fpga and lwhps2fpga bridges are demonstrated. Remaining bridges can also be used in the
+ * same way. The sample can be divided into two sections as below:
  *      - @b hps2fpga @b bridge <br>
  *           The HPS2FPGA bridges extends the HPS peripherals to the FPGA. Any additional IPs implemented
  *           in the FPGA fabric can be used from the HPS subsystem. In the sample application, basic memory
- *           validation test is perfomed. Data is written to the start and end address of the first 1G memory
+ *           validation test is performed. Data is written to the start and end address of the first 1G memory
  *           area of the HPS2FPGA bridge and is read back and compared with initial buffers.
  *
  *      - @b lwhps2fpga @b bridge <br>
- *           The LWHPS2FPGA bridge has almost the same funcitonality as the HPS2FPGA bridge. This is specifically
- *           meant for narrower use case invloving simple peripherals on the fpga with strongly ordered single
- *           transactions. The sample for lwhps2fpga bridge has the following features :-
+ *           The LWHPS2FPGA bridge has almost the same functionality as the HPS2FPGA bridge. This is specifically
+ *           meant for narrower use case involving simple peripherals on the fpga with strongly ordered single
+ *           transactions. The sample for lwhps2fpga bridge has the following features:
  *           - Read the sysid
  *           - Toggle an LED connected through the lwhpsfpga bridge, where the LED is mapped to LED D16 on the PDK.
  *

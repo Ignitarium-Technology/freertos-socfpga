@@ -829,11 +829,11 @@ WARN_LOGFILE           =
 # spaces. See also FILE_PATTERNS and EXTENSION_MAPPING
 # Note: If this tag is empty the current directory is searched.
 
-INPUT                  = FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/cli_app \
+INPUT                  = FreeRTOS/Demo/SOCFPGA/apps/samples/cli_app \
                          drivers \
+                         tinyusb/apps \
                          samples \
-                         tinyusb/src/portable/socfpga/usb_main.h \
-                         FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/main_freertosplus_basic/
+                         FreeRTOS/Demo/SOCFPGA/apps/samples/main_freertosplus_basic/
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding. Doxygen uses
@@ -923,13 +923,12 @@ RECURSIVE              = YES
 
 EXCLUDE                = osal \
                          FreeRTOS/FreeRTOS-Plus/Source/FreeRTOS-Plus-TCP/docs/doxygen \
-                         FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/build \
                          drivers/samples/build \
                          drivers/tests/build \
                          drivers/usb3/host \
                          drivers/usb3 \
-                         FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/main_freertosplus_basic/main_freertosplus_basic.c \
-                         FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/cli_app/CMakeLists. \
+                         FreeRTOS/Demo/SOCFPGA/apps/samples/main_freertosplus_basic/main_freertosplus_basic.c \
+                         FreeRTOS/Demo/SOCFPGA/apps/samples/cli_app/CMakeLists. \
 
 # The EXCLUDE_SYMLINKS tag can be used to select whether or not files or
 # directories that are symbolic links (a Unix file system feature) are excluded

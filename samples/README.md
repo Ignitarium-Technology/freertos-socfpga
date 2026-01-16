@@ -11,7 +11,7 @@ Each sample application needs to be built from the respective project folder.
 
 Configure cmake build. Specify the desired build directory.
 ```bash
-cmake -B <build-dir> .
+cmake -B <build-dir> . -DCMAKE_BUILD_TYPE=Release -DSOC=AGILEX5 -DCORE=A55 -DSOF_PATH=<path to .sof file> -DPFG_SDMMC=<.pfg for sd/mmc> -DPFG_QSPI=<.pfg for qspi>
 ```
 Build .elf alone
 ```bash
@@ -29,7 +29,7 @@ cmake --build <build-dir> -t qspi-image
 
 Configure cmake build
 ```bash
-cmake -B <build-dir> -G Ninja
+cmake -B <build-dir> -G Ninja . -DCMAKE_BUILD_TYPE=Release -DSOC=AGILEX5 -DCORE=A55 -DSOF_PATH=<.sof file> -DPFG_SDMMC=<.pfg for sd/mmc> -DPFG_QSPI=<.pfg for qspi>
 ```
 Build .elf alone
 ```bash

@@ -7,11 +7,12 @@
  * Endpoints sub-module.
  */
 
-#include "socfpga_cache.h"
 #include "xhci_doorbell.h"
+#include "xhci.h"
 #include "xhci_endpoints.h"
 #include "xhci_rings.h"
 #include "osal_log.h"
+#include "socfpga_cache.h"
 
 /**
  * @brief Setup the TRB with the control transfer data. For xHCI, control transfer consists of 3 stages.
@@ -104,7 +105,7 @@ void configure_setup_stage(struct xhci_data *xhci, void *buffer,
     ptr->control = end_ctrl_flags;
 
     cache_force_write_back((void *) xhci->ep0.ep_tr_enq_ptr,
-            EP_TRB_SEG_LENGTH * sizeof(xhci_trb_t));
+           EP_TRB_SEG_LENGTH * sizeof(xhci_trb_t));
 }
 
 /**
@@ -303,7 +304,6 @@ bool endpoint_transfer(struct xhci_data *xhci, int ep_num, uint8_t dir,
     {
         INFO("Endpoint OUT transfer on endpoint - %d with bytes - %d ", ep_num,
                 buflen);
-        cache_force_write_back(buffer, buflen);
         fill_endpoint_transfer_ring(&xhci->msc_eps.ep_out, buffer, buflen);
         ring_xhci_ep_doorbell(&xhci->op_regs, db_target);
     }
@@ -314,11 +314,95 @@ bool endpoint_transfer(struct xhci_data *xhci, int ep_num, uint8_t dir,
                 buflen);
         fill_endpoint_transfer_ring(&xhci->msc_eps.ep_in, buffer, buflen);
         ring_xhci_ep_doorbell(&xhci->op_regs, db_target);
-        cache_force_invalidate(buffer, buflen);
     }
     else
     {
         return false;
     }
     return true;
+}
+
+int xhci_parse_endpoint_descriptor(struct xhci_data *xhci_ptr,
+        usb_endpoint_descriptor_t *desc)
+{
+    const uint8_t ep_dir = get_endpoint_dir(desc->bEndpointAddress);
+    uint8_t max_streams = 0;
+    if (ep_dir == USB_EP_DIR_IN)
+    {
+        xhci_ptr->msc_eps.ep_in.ep_desc.bLength = desc->bLength;
+        xhci_ptr->msc_eps.ep_in.ep_desc.bDescriptorType = desc->bDescriptorType;
+        xhci_ptr->msc_eps.ep_in.ep_desc.bEndpointAddress =
+                desc->bEndpointAddress;
+        xhci_ptr->msc_eps.ep_in.ep_desc.bmAttributes = desc->bmAttributes;
+        xhci_ptr->msc_eps.ep_in.ep_desc.wMaxPacketSize = desc->wMaxPacketSize;
+        xhci_ptr->msc_eps.ep_in.ep_desc.bInterval = desc->bInterval;
+
+        xhci_ptr->msc_eps.ep_in.ep_type = BULK_IN;
+        xhci_ptr->msc_eps.ep_in.pcs_flag = 1U;
+
+        /* For xHCI spec, endpoint context index is ep_dci -1 */
+        xhci_ptr->msc_eps.ep_in.ep_index = get_ep_dci(desc->bEndpointAddress) -
+                0x1U;
+        xhci_ptr->msc_eps.ep_in.ep_addr = desc->bEndpointAddress;
+
+        if (max_streams > 0U)
+        {
+            /* Stream support not enabled */
+            return -ENOTSUP;
+        }
+        else
+        {
+            xhci_trb_t *enq_ptr;
+            enq_ptr = allocate_ring_segment(XHCI_EP_TR_RING_ALIGN,
+                    EP_TRB_SEG_LENGTH);
+            if (enq_ptr == NULL)
+            {
+                ERROR("Canot allocate memory!!!");
+                return -ENOMEM;
+            }
+
+            xhci_ptr->msc_eps.ep_in.ep_tr_enq_ptr = enq_ptr;
+        }
+    }
+
+    if (ep_dir == USB_EP_DIR_OUT)
+    {
+        xhci_trb_t *enq_ptr;
+        max_streams = 0;
+
+        xhci_ptr->msc_eps.ep_out.ep_desc.bLength = desc->bLength;
+        xhci_ptr->msc_eps.ep_out.ep_desc.bDescriptorType =
+                desc->bDescriptorType;
+        xhci_ptr->msc_eps.ep_out.ep_desc.bEndpointAddress =
+                desc->bEndpointAddress;
+        xhci_ptr->msc_eps.ep_out.ep_desc.bmAttributes = desc->bmAttributes;
+        xhci_ptr->msc_eps.ep_out.ep_desc.wMaxPacketSize = desc->wMaxPacketSize;
+        xhci_ptr->msc_eps.ep_out.ep_desc.bInterval = desc->bInterval;
+
+        xhci_ptr->msc_eps.ep_out.ep_type = BULK_OUT;
+        xhci_ptr->msc_eps.ep_out.pcs_flag = 1U;
+
+        /* For xHCI spec, endpoint context index is ep_dci -1 */
+        xhci_ptr->msc_eps.ep_out.ep_index = get_ep_dci(desc->bEndpointAddress) -
+                0x1U;
+        xhci_ptr->msc_eps.ep_out.ep_addr = desc->bEndpointAddress;
+
+        if (max_streams > 0U)
+        {
+            /* Stream support not enabled */
+            return -ENOTSUP;
+        }
+        else
+        {
+            enq_ptr = allocate_ring_segment(XHCI_EP_TR_RING_ALIGN,
+                    EP_TRB_SEG_LENGTH);
+            if (enq_ptr == NULL)
+            {
+                ERROR("Cannot allocate memory!!!");
+                return -ENOMEM;
+            }
+            xhci_ptr->msc_eps.ep_out.ep_tr_enq_ptr = enq_ptr;
+        }
+    }
+    return 0;
 }

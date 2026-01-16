@@ -7,8 +7,8 @@
  */
 
 /**
- * @file spi_sample.c
- * @brief Sample Application for SPI
+ * @file qspi_sample.c
+ * @brief Sample Application for QSPI
  */
 
 #include "FreeRTOS.h"
@@ -29,7 +29,7 @@
  * @details
  * @section qspi_desc Description
  * This is a sample application to demonstrate the usage of QSPI flash driver.
- * It writes data to an flash using QSPI, reads it back and then verifies it.
+ * It writes data to flash using QSPI, reads it back and then verifies it.
 
  * This sample app was  tested with Micron MT25QU02GCBB Serial NOR Flash Memory.
  *

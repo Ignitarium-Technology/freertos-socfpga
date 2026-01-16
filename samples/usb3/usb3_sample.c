@@ -69,7 +69,7 @@ void usb3_sample_task(void)
 {
     BaseType_t xReturn;
 
-    xReturn = xTaskCreate(usb3_task, "usb3_sample",
+    xReturn = xTaskCreate(usb_task, "usb3_sample",
             configMINIMAL_STACK_SIZE * 20, NULL,
             TASK_PRIORITY - 1, NULL);
     if (xReturn != 1)
@@ -97,27 +97,29 @@ void run_usb_fatfs(void)
     FF_SPartFound_t parts_found;
     parts_found.iCount = 0;
 
-    PRINT("Waiting for the USB3 disk to be mounted");
+    PRINT("Waiting for the USB3 disk to be mounted...");
 
     /* wait for the usb3 disk to be mounted */
-    ret = usb3_wait_to_mount(USB3_TIMEOUT);
+    ret = usb_wait_to_mount(USB3_TIMEOUT);
     if (ret != 0)
     {
-        ERROR("Usb3 timeout occured... No device mounted");
+        ERROR("Usb timeout occured... No device mounted");
         ERROR("Exiting sample application");
         return;
     }
 
-    PRINT("Mass Storage Device Mounted");
+    PRINT("USB mass storaged device mounted successfully");
     /***********************************************************************************/
     /*                          USB Disk Init                                          */
     /***********************************************************************************/
+    PRINT("Initializing the disk...");
     pdisk = FF_SDDiskInit(USB_MOUNT_POINT, USB_MOUNT_ADDR);
     if (pdisk == NULL)
     {
         ERROR("Failed to initialize disk");
         return;
     }
+    PRINT("Disk initilization done");
 
     /* Get the Fatfs partition count */
     int fat_pcount = FF_PartitionSearch(pdisk->pxIOManager, &parts_found);
@@ -135,6 +137,7 @@ void run_usb_fatfs(void)
     /***********************************************************************************/
     /*                          Mount the USB                                          */
     /***********************************************************************************/
+    PRINT("Mounting the FAT partition...");
     err = FF_Mount(pdisk, FAT_PARTITION);
     if (err != FF_ERR_NONE)
     {
@@ -143,11 +146,12 @@ void run_usb_fatfs(void)
         ERROR("Exiting from sample application");
         return;
     }
-    PRINT("File system mounted successfully");
+    PRINT("FAT partition mounted successfully");
 
     /***********************************************************************************/
     /*                          create a directory                                     */
     /***********************************************************************************/
+    PRINT("Creating directory...");
     err = FF_MkDir(pdisk->pxIOManager, pcSampleDir);
     if (err != FF_ERR_NONE)
     {
@@ -162,6 +166,7 @@ void run_usb_fatfs(void)
     /***********************************************************************************/
     /*                         delete the directory                                    */
     /***********************************************************************************/
+    PRINT("Deleting the directory...");
     err = FF_RmDir(pdisk->pxIOManager, pcSampleDir);
     if (err != FF_ERR_NONE)
     {
@@ -171,12 +176,13 @@ void run_usb_fatfs(void)
         ERROR("Exiting from sample application");
         return;
     }
-    PRINT("Directory removed successfully");
+    PRINT("Directory deleted successfully");
 
     /***********************************************************************************/
     /*                         write to a file                                         */
     /***********************************************************************************/
-
+    PRINT("Writing data to a file...");
+    PRINT("Opening file...");
     file = FF_Open(pdisk->pxIOManager, file_name,
             FF_MODE_WRITE | FF_MODE_CREATE, &err);
     if ((file == NULL) || (err != FF_ERR_NONE))
@@ -187,6 +193,7 @@ void run_usb_fatfs(void)
         ERROR("Exiting from sample application");
         return;
     }
+    PRINT("File opened successfully");
     bytes_written = FF_Write(file, 1, strlen(
             (char *)write_data1), (uint8_t *)write_data1);
     if ((bytes_written != strlen((char *)write_data1)) || (err != FF_ERR_NONE))
@@ -199,11 +206,14 @@ void run_usb_fatfs(void)
         return;
     }
     FF_Close(file);
+    PRINT("File closed");
     PRINT("Data written to file successfully");
 
     /***********************************************************************************/
     /*                         read from a file                                        */
     /***********************************************************************************/
+    PRINT("Reading data from the file...");
+    PRINT("Opening file...");
     file = FF_Open(pdisk->pxIOManager, file_name, FF_MODE_READ, &err);
     if ((file == NULL) || (err != FF_ERR_NONE))
     {
@@ -214,6 +224,7 @@ void run_usb_fatfs(void)
         return;
     }
 
+    PRINT("File opened successfully");
     bytes_read = FF_Read(file, 1, sizeof(pcReadBuffer) - 1, pcReadBuffer);
     if (bytes_read <= 0)
     {
@@ -226,11 +237,13 @@ void run_usb_fatfs(void)
     }
     pcReadBuffer[bytes_read] = '\0';
     FF_Close(file);
+    PRINT("File closed");
     PRINT("Data read from file: %s", pcReadBuffer);
 
     /***********************************************************************************/
     /*                         delete a file                                           */
     /***********************************************************************************/
+    PRINT("Deleting a file...");
     err = FF_RmFile(pdisk->pxIOManager, file_name);
     if (err != FF_ERR_NONE)
     {
@@ -245,6 +258,7 @@ void run_usb_fatfs(void)
     /***********************************************************************************/
     /*                         unmount the usb drive                                   */
     /***********************************************************************************/
+    PRINT("Unmounting the FAT partition...");
     err = FF_Unmount(pdisk);
     if (err != FF_ERR_NONE)
     {
@@ -253,9 +267,8 @@ void run_usb_fatfs(void)
         ERROR("Exiting from sample application");
         return;
     }
-    PRINT("Filesystem unmounted successfully");
+    PRINT("FAT partition unmounted successfully");
 
     FF_SDDiskDelete(pdisk);
     PRINT("Disk deleted successfully");
-
 }

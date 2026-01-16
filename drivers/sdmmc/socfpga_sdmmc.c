@@ -63,6 +63,11 @@
 #include "socfpga_sdmmc_ll.h"
 #include "socfpga_sdmmc.h"
 
+/*
+ * Maximum time to wait for an sdmmc command response before timeout.
+ * 10ms provides a safe margin for back to back command responses.
+ */
+#define SDMMC_CMD_TIMEOUT_MS   10UL
 #define DEF_SPEED_EN    1
 #define DEF_SPEED_DI    0
 
@@ -758,8 +763,16 @@ static int32_t sd_snd_rel_add(cmd_parameters_t *pcmd)
 static int32_t sd_en_card_ready(cmd_parameters_t *pcmd_handle)
 {
     int32_t state;
+    int retry = 100;
 
-    while (sdmmc_is_card_ready() == 0U)
+    /*
+     * Poll for sd card ready by reapetedly issuing APP_CMD and followed
+     * by OCR check. A retry count of 100 is provided because some time
+     * may be needed to complete interanl power-up and voltage negotiation.
+     * If the sdmmc card is not ready within 100 iteration, a timeout is
+     * returned.
+     */
+    while ((sdmmc_is_card_ready()) == 0U && (retry > 0 ))
     {
         state = sd_snd_app_cmd(pcmd_handle);
         if (state != 0)
@@ -771,6 +784,12 @@ static int32_t sd_en_card_ready(cmd_parameters_t *pcmd_handle)
         {
             return -EIO;
         }
+        retry--;
+        osal_task_delay(10);
+    }
+    if(retry <= 0 )
+    {
+        return -ETIMEDOUT;
     }
     return 0;
 }
@@ -1139,7 +1158,7 @@ static void sdmmc_wait_xfer_done(void)
 static void sdmmc_wait_cmd_done(void)
 {
     (void)osal_semaphore_wait(sdmmc_descriptor.semaphore_cmd,
-            OSAL_TIMEOUT_WAIT_FOREVER);
+            SDMMC_CMD_TIMEOUT_MS);
 }
 
 void sdmmc_irq_handler(void *data)

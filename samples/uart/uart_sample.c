@@ -34,7 +34,7 @@
  * @section uart_pre Prerequisites
  * - Configuration:
  * - To prevent conflict with console output, ensure the macro below is configured as follows
- * @c FreeRTOS/Demo/CORTEX_A55_SOCFPGA/FreeRTOSConfig.h: <br>
+ * @c FreeRTOS/Demo/SOCFPGA/FreeRTOSConfig.h: <br>
  * @c \#define @c configENABLE_CONSOLE_UART @c 0
  * - This disables the default console UART, allowing this sample to use the UART exclusively.
  *

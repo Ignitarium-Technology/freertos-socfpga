@@ -52,7 +52,6 @@
 #include "FreeRTOS_Routing.h"
 #include <FreeRTOSIPConfig.h>
 
-/* XGMAC HAL and LL Driver Includes.  */
 #include "socfpga_xgmac.h"
 #include "socfpga_xgmac_phy.h"
 /*-----------------------------------------------------------*/
@@ -222,15 +221,14 @@ void prvNetworkInterfaceDown( NetworkInterface_t * pxInterface );
 
 static void prvPassEthMessages( NetworkBufferDescriptor_t * pxDescriptor );
 
-static inline unsigned long prvReadMDIO( uint8_t ulReg,
-                                         NetworkInterface_t * pxInterface );
+static inline BaseType_t xReadPhyStatus( NetworkInterface_t * pxInterface );
 BaseType_t GetPhyLinkStatus( struct xNetworkInterface * pxDescriptor );
 BaseType_t prvPhyCheckLinkStatus( TickType_t xMaxTimeTicks,
                                   NetworkInterface_t * pxInterface );
 /*-----------------------------------------------------------*/
 
 /* A copy of PHY register 1: 'COPPER_STATUS_REG' */
-static uint64_t ulPHYLinkStatus = 0uL;
+static BaseType_t xPHYLinkStatus = pdFALSE;
 static uint32_t PhyLinkSpeed;
 /*-----------------------------------------------------------*/
 
@@ -263,11 +261,11 @@ static xgmac_phy_config_t xPhyDev =
 {
     .phy_address            = 0,
     .phy_identifier         = 0,
-    .phy_interface          = PHY_IF_SELECT_RGMII,
-    .enable_autonegotiation = ENABLE_AUTONEG,
+    .phy_interface          = ETH_PHY_IF_RGMII,
+    .enable_autonegotiation = ETH_ENABLE_AUTONEG,
     .speed_mbps             = ETH_SPEED_1000_MBPS,
-    .duplex                 = PHY_FULL_DUPLEX,
-    .advertise              = ADVERTISE_ALL,
+    .duplex                 = ETH_FULL_DUPLEX,
+    .advertise              = ETH_ADVERTISE_ALL,
     .link_status            = 0,
 };
 /*-----------------------------------------------------------*/
@@ -311,8 +309,7 @@ uint8_t * pucBufferPool = NULL;
 
             if( xStatus != 0 )
             {
-                FreeRTOS_printf( (
-                                     "SOCFPGA_XGMAC: IRQ Callback Registration Failed....\n" ) );
+                FreeRTOS_printf( ( "SOCFPGA_XGMAC: IRQ Callback Registration Failed....\n" ) );
                 eXGMACState = XGMAC_Failed;
                 break;
             }
@@ -357,8 +354,7 @@ uint8_t * pucBufferPool = NULL;
 
                     if( xRetVal != pdPASS )
                     {
-                        FreeRTOS_printf( (
-                                             "SOCFPGA_XGMAC: Tx DMA Buffer Allocation Failed....\n" ) );
+                        FreeRTOS_printf( ( "SOCFPGA_XGMAC: Tx DMA Buffer Allocation Failed....\n" ) );
                         eXGMACState = XGMAC_Failed;
                         break;
                     }
@@ -372,8 +368,7 @@ uint8_t * pucBufferPool = NULL;
 
                     if( xRetVal != pdPASS )
                     {
-                        FreeRTOS_printf( (
-                                             "SOCFPGA_XGMAC: Rx DMA Buffer Allocation Failed....\n" ) );
+                        FreeRTOS_printf( ( "SOCFPGA_XGMAC: Rx DMA Buffer Allocation Failed....\n" ) );
                         eXGMACState = XGMAC_Failed;
                         break;
                     }
@@ -417,8 +412,7 @@ uint8_t * pucBufferPool = NULL;
 
             if( xStatus != 0 )
             {
-                FreeRTOS_printf( (
-                                     "SOCFPGA_XGMAC: Set EMAC operating Speed Failed....\n" ) );
+                FreeRTOS_printf( ( "SOCFPGA_XGMAC: Set EMAC operating Speed Failed....\n" ) );
                 eXGMACState = XGMAC_Failed;
                 break;
             }
@@ -503,7 +497,7 @@ uint32_t ulDataLength = 0;
     }
 
     /* Check Link Status and Call XGMAC transmit function */
-    if( ( ulPHYLinkStatus & niBMSR_LINK_STATUS ) != 0UL )
+    if( xPHYLinkStatus != pdFALSE )
     {
         iptraceNETWORK_INTERFACE_TRANSMIT();
 
@@ -584,9 +578,9 @@ BaseType_t xReturn;
             break;
         }
 
-        ulPHYLinkStatus = prvReadMDIO( COPPER_STATUS_REG, pxInterface );
+        xPHYLinkStatus = xReadPhyStatus( pxInterface );
 
-        if( ( ulPHYLinkStatus & niBMSR_LINK_STATUS ) != 0uL )
+        if( xPHYLinkStatus != pdFALSE )
         {
             xReturn = pdTRUE;
             break;
@@ -804,7 +798,7 @@ BaseType_t GetPhyLinkStatus( struct xNetworkInterface * pxDescriptor )
     ( void ) pxDescriptor;
 BaseType_t xReturn;
 
-    if( ( ulPHYLinkStatus & niBMSR_LINK_STATUS ) == 0uL )
+    if( xPHYLinkStatus == pdFALSE )
     {
         xReturn = pdFALSE;
     }
@@ -818,14 +812,13 @@ BaseType_t xReturn;
 /*-----------------------------------------------------------*/
 
 
-static inline unsigned long prvReadMDIO( uint8_t ulReg,
-                                         NetworkInterface_t * pxInterface )
+static inline BaseType_t xReadPhyStatus( NetworkInterface_t * pxInterface )
 {
 int instance = ( int ) ( ( uintptr_t ) pxInterface->pvArgument );
 xgmac_handle_t pXGMACHandle = ( xgmac_handle_t ) xEmacConfig[ instance ].hxgmac;
 
-    return ( unsigned long ) read_phy_reg( xgmac_get_inst_base_addr( pXGMACHandle ),
-                                           xPhyDev.phy_address, ulReg );
+    return phy_get_link_status( xgmac_get_inst_base_addr( pXGMACHandle ),
+                                           &xPhyDev );
 }
 /*-----------------------------------------------------------*/
 
@@ -861,7 +854,13 @@ BaseType_t ucRemainInErrState = pdFALSE;
 int instance = ( int ) ( ( uintptr_t ) pxInterface->pvArgument );
 xgmac_handle_t pXGMACHandle = ( xgmac_handle_t ) xEmacConfig[ instance ].hxgmac;
 xgmac_err_t xErrType = ( xgmac_err_t ) ucErrStatus;
+BaseType_t xStatus = xReadPhyStatus( pxInterface );
 
+    if( xStatus != xPHYLinkStatus )
+    {
+        /* PHY state changed, mark as down for reconfigure */
+        xPHYLinkStatus = 0;
+    }
     switch( xErrType )
     {
         case XGMAC_ERR_FATAL_BUS:
@@ -869,15 +868,13 @@ xgmac_err_t xErrType = ( xgmac_err_t ) ucErrStatus;
             break;
 
         case XGMAC_ERR_TX_STOPPED:
-            FreeRTOS_printf( (
-                                 "Transmit Stopped on DMA Channel %d Re-init NetworkInterface\n", \
-                                 ucErrChnlNum ) );
+            FreeRTOS_printf( ( "Transmit Stopped on DMA Channel %d Re-init NetworkInterface\n", \
+                               ucErrChnlNum ) );
             break;
 
         case XGMAC_ERR_RX_STOPPED:
-            FreeRTOS_printf( (
-                                 "Receive Stopped on DMA Channel %d Re-init NetworkInterface\n", \
-                                 ucErrChnlNum ) );
+            FreeRTOS_printf( ( "Receive Stopped on DMA Channel %d Re-init NetworkInterface\n", \
+                               ucErrChnlNum ) );
             break;
 
         case XGMAC_ERR_TX_BUF_UNAVAILABLE:
@@ -996,8 +993,7 @@ xgmac_handle_t pXGMACHandle = ( xgmac_handle_t ) xEmacConfig[ instance ].hxgmac;
                     }
                     else
                     {
-                        FreeRTOS_printf( (
-                                             "Tx Done Get Buff: Can not find network buffer\n" ) );
+                        FreeRTOS_printf( ( "Tx Done Get Buff: Can not find network buffer\n" ) );
                     }
                 }
             }
@@ -1007,8 +1003,7 @@ xgmac_handle_t pXGMACHandle = ( xgmac_handle_t ) xEmacConfig[ instance ].hxgmac;
 
                 if( xReturn != pdPASS )
                 {
-                    FreeRTOS_printf( (
-                                         "Tx Done Get Buff: Can not release pool buffer  \n" ) );
+                    FreeRTOS_printf( ( "Tx Done Get Buff: Can not release pool buffer  \n" ) );
                 }
             #endif /* ipconfigZERO_COPY_TX_DRIVER */
         }
@@ -1334,32 +1329,32 @@ xgmac_handle_t pXGMACHandle = ( xgmac_handle_t ) xEmacConfig[ instance ].hxgmac;
 
         if( xTaskCheckForTimeOut( &xPhyTime, &xPhyRemTime ) != pdFALSE )
         {
-            xStatus = prvReadMDIO( COPPER_STATUS_REG, pxInterface );
+            xStatus = xReadPhyStatus( pxInterface );
 
-            if( ( ulPHYLinkStatus & niBMSR_LINK_STATUS ) !=
-                ( xStatus & niBMSR_LINK_STATUS ) )
+            /* PHY link status has been changed need to update XGMAC Configurations */
+            if( xPHYLinkStatus != xStatus )
             {
-                /* PHY link status has been changed need to update XGMAC Configurations */
-                if( xgmac_update_xgmac_speed_mode( pXGMACHandle, &xPhyDev ) != 0 )
+                /* PHY link is up since last check, reconfigure parameters */
+                if( xStatus == pdTRUE )
                 {
-                    FreeRTOS_printf( (
-                                         "SOCFPGA_XGMAC: Updating Configurations failed....\n" ) );
+                    if( xgmac_update_xgmac_speed_mode( pXGMACHandle, &xPhyDev ) != 0 )
+                    {
+                        FreeRTOS_printf( ( "SOCFPGA_XGMAC: Updating Configurations failed....\n" ) );
+                    }
                 }
+                xStatus = xReadPhyStatus( pxInterface );
 
-                xStatus = prvReadMDIO( COPPER_STATUS_REG, pxInterface );
-
-                if( ( ulPHYLinkStatus & niBMSR_LINK_STATUS ) !=
-                    ( xStatus & niBMSR_LINK_STATUS ) )
+                if( xPHYLinkStatus != xStatus )
                 {
-                    ulPHYLinkStatus = xStatus;
+                    xPHYLinkStatus = xStatus;
                     FreeRTOS_printf( ( "prvEMACHandlerTask: PHY LS now %lu\n",
-                                       ( ulPHYLinkStatus & niBMSR_LINK_STATUS ) != 0uL ) );
+                                        xPHYLinkStatus != 0uL ) );
                 }
             }
 
             vTaskSetTimeOutState(&xPhyTime);
 
-            if( ( ulPHYLinkStatus & niBMSR_LINK_STATUS ) != 0uL )
+            if( xPHYLinkStatus != pdFALSE )
             {
                 xPhyRemTime = pdMS_TO_TICKS(PHY_LS_HIGH_CHECK_TIME_MS);
             }

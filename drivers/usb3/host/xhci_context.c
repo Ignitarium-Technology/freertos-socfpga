@@ -179,18 +179,6 @@ int init_input_device_context(struct xhci_data *xhci_ptr)
     int ret = 0;
     xhci_trb_t *xep0_tr_ptr;
 
-    /* Clear the usb descriptor structures */
-    memset((void *)&xhci_ptr->usb_desc.dev_desc, 0,
-            sizeof(usb_device_descriptor_t));
-    memset((void *)&xhci_ptr->usb_desc.dev_conf_desc, 0,
-            sizeof(usb_conf_descriptor_t));
-    memset((void *)&xhci_ptr->usb_desc.dev_intf_desc, 0,
-            sizeof(usb_interface_descriptor_t));
-    memset((void *)&xhci_ptr->usb_desc.root_bos_desc, 0, sizeof(struct
-            usb_bos_root_desc));
-    memset((void *)&xhci_ptr->usb_desc.ss_ep_comp_desc, 0,
-            sizeof(usb3_ss_ep_comp_desc_t));
-
     /*
      * Input Control Context
      * Select A0, A1 flags

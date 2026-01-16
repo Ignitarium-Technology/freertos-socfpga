@@ -35,13 +35,17 @@ set(DEFAULT_C_FLAGS_SECURITY -D_FORTIFY_SOURCE=2  CACHE STRING "Security build f
 set(DEFAULT_C_FLAGS_SECURITY_STRONG ${DEFAULT_C_FLAGS_SECURITY} -z noexecstack -fvisibility=hidden CACHE STRING "Strong Security build flags." FORCE)
 set(DEFAULT_C_FLAGS_CLEAN_CODE -ffunction-sections -fdata-sections -fno-zero-initialized-in-bss -mstrict-align CACHE STRING "Code cleanliness build flags." FORCE)
 set(DEFAULT_C_FLAGS_WARNINGS -Werror -Wall -Wextra -Wformat -Wformat-security -Wno-sign-compare -Wno-unused-parameter -Wno-maybe-uninitialized -Wno-int-to-pointer-cast -Wno-stringop-truncation -Wno-array-bounds CACHE STRING "Warning build flags." FORCE)
-set(DEFAULT_C_FLAGS_PROCESSOR_TUNE -march=armv8-a -mtune=cortex-a55 CACHE STRING "processor tuning build flags" FORCE)
+if(CORE STREQUAL "A76")
+    set(DEFAULT_C_FLAGS_PROCESSOR_TUNE -march=armv8-a -mtune=cortex-a76 CACHE STRING "processor tuning build flags" FORCE)
+else()
+    set(DEFAULT_C_FLAGS_PROCESSOR_TUNE -march=armv8-a -mtune=cortex-a55 CACHE STRING "processor tuning build flags" FORCE)
+endif()
 
 set(DEFAULT_C_FLAGS_DEBUG -O0 -g3 -DGUEST ${DEFAULT_C_FLAGS_SECURITY} ${DEFAULT_C_FLAGS_WARNINGS} ${DEFAULT_C_FLAGS_CLEAN_CODE} ${DEFAULT_C_FLAGS_PROCESSOR_TUNE} )
 
 set(DEFAULT_C_FLAGS_RELEASE -O2 ${DEFAULT_C_FLAGS_SECURITY_STRONG} ${DEFAULT_C_FLAGS_WARNINGS} ${DEFAULT_C_FLAGS_CLEAN_CODE} ${DEFAULT_C_FLAGS_PROCESSOR_TUNE} )
 
-set(FREERTOS_CONFIG_HEADER_PATH ${CMAKE_CURRENT_SOURCE_DIR}/FreeRTOS/Demo/CORTEX_A55_SOCFPGA)
+set(FREERTOS_CONFIG_HEADER_PATH ${CMAKE_CURRENT_SOURCE_DIR}/FreeRTOS/Demo/SOCFPGA)
 
 if(NOT WIN32)
   string(ASCII 27 Esc)

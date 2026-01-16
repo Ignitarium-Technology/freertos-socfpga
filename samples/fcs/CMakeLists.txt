@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.5...3.28)
 
-#define these for qspi image generation
-set(PFG_PATH "null" CACHE STRING "PFG path")
-set(SOF_PATH "${CMAKE_SOURCE_DIR}/ghrd_a5ed065bb32ae6sr0.sof" CACHE STRING "SOF File path")
+include(${CMAKE_CURRENT_SOURCE_DIR}/../common/download_dep.cmake)
 
 include(FetchContent)
 
@@ -32,7 +30,7 @@ add_executable(${PROJECT_NAME}.elf)
 #Add image generation
 generate_bin_file(${PROJECT_NAME}.elf)
 add_sd_image(${PROJECT_NAME}.elf)
-add_qspi_image(${PROJECT_NAME}.elf ${PFG_PATH} ${SOF_PATH})
+add_qspi_image(${PROJECT_NAME}.elf)
 
 
 # link to the baremetal library

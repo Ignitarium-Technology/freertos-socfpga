@@ -98,7 +98,7 @@ socfpga_interrupt_err_t interrupt_ppi_enable(socfpga_hpu_interrupt_t id,
     {
         return ERR_PPI_ID;
     }
-    if (gic_set_int_type((uint32_t)id, 0U, type) != INTERRUPT_RETURN_SUCCESS)
+    if (gic_set_int_type((uint32_t)id, gic_redis_id, type) != INTERRUPT_RETURN_SUCCESS)
     {
         return ERR_PPI_ID;
     }
@@ -112,9 +112,12 @@ socfpga_interrupt_err_t interrupt_ppi_enable(socfpga_hpu_interrupt_t id,
 socfpga_interrupt_err_t interrupt_spi_enable(socfpga_hpu_interrupt_t id,
         socfpga_hpu_interrupt_type_t interrupt_type,
         socfpga_hpu_spi_interrupt_mode_t interrupt_mode,
-        uint8_t priority) {
+        uint8_t priority)
+{
     uint32_t mode = GICV3_ROUTE_MODE_ANY;
     uint32_t type = GICV3_CONFIG_LEVEL;
+    uint32_t affinity = (uint32_t)gic_reg_get_cpu_affinity();
+    uint32_t  gic_redis_id = (uint32_t)gic_get_redist_id(affinity);
 
     if ((id > SOCFPGA_MAX_SPI) || (id < SOCFPGA_SPI_START))
     {
@@ -130,23 +133,23 @@ socfpga_interrupt_err_t interrupt_spi_enable(socfpga_hpu_interrupt_t id,
         mode = GICV3_ROUTE_MODE_COORDINATE;
     }
 
-    if (gic_set_int_priority((uint32_t)id, 0U, priority) != INTERRUPT_RETURN_SUCCESS)
+    if (gic_set_int_priority((uint32_t)id, gic_redis_id, priority) != INTERRUPT_RETURN_SUCCESS)
     {
         return ERR_SPI_ID;
     }
-    if (gic_set_int_group((uint32_t)id, 0U, GICV3_GROUP1_NON_SECURE) != INTERRUPT_RETURN_SUCCESS)
+    if (gic_set_int_group((uint32_t)id, gic_redis_id, GICV3_GROUP1_NON_SECURE) != INTERRUPT_RETURN_SUCCESS)
     {
         return ERR_SPI_ID;
     }
-    if (gic_set_int_route((uint32_t)id, mode, 0U) != INTERRUPT_RETURN_SUCCESS)
+    if (gic_set_int_route((uint32_t)id, mode, affinity) != INTERRUPT_RETURN_SUCCESS)
     {
         return ERR_SPI_ID;
     }
-    if (gic_set_int_type((uint32_t)id, 0U, type) != INTERRUPT_RETURN_SUCCESS)
+    if (gic_set_int_type((uint32_t)id, gic_redis_id, type) != INTERRUPT_RETURN_SUCCESS)
     {
         return ERR_SPI_ID;
     }
-    if (gic_enable_int((uint32_t)id, 0U) != INTERRUPT_RETURN_SUCCESS)
+    if (gic_enable_int((uint32_t)id, gic_redis_id) != INTERRUPT_RETURN_SUCCESS)
     {
         return ERR_SPI_ID;
     }

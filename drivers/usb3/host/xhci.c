@@ -56,7 +56,7 @@ int is_ptr_mem_aligned(uint64_t addr, uint32_t byte)
     return -EIO;
 }
 
-int configure_xhci_max_slots(struct xhci_data *xhci)
+static int configure_xhci_max_slots(struct xhci_data *xhci)
 {
     volatile uint32_t config_reg_val;
     uint32_t max_slots;
@@ -87,9 +87,13 @@ void start_xhci_controller(void)
     WR_REG32((USBBASE + USB3_USBCMD), reg_val);
 }
 
-void wait_for_controller_ready(void)
+/*
+ * wait for the xhci controller to be ready
+ */
+static int wait_for_controller_ready(void)
 {
     uint32_t reg_val;
+    volatile uint16_t loop = 100;
 
     do
     {
@@ -101,10 +105,17 @@ void wait_for_controller_ready(void)
         }
 
         osal_task_delay(10);
+        --loop;
 
-    }while(true);
+    }while(loop > 0);
 
-    INFO("xHCI Controller Ready");
+    if(loop > 0)
+    {
+        INFO("xHCI Controller Ready");
+        return 0;
+    }
+
+    return -ETIMEDOUT;
 }
 
 int xhci_reset(void)
@@ -138,4 +149,33 @@ int xhci_reset(void)
 
     INFO("xHCI controller reset successful");
     return 0;
+}
+
+bool xhci_init(struct xhci_data *xhci)
+{
+    int ret;
+
+    get_xhc_cap_params(xhci);
+
+    if(wait_for_controller_ready() != 0)
+    {
+        return false;
+    }
+
+    ret = xhci_reset();
+    if( ret != 0 )
+    {
+        ERROR("xhci reset failed");
+        return  false;
+    }
+
+    configure_xhci_max_slots(xhci);
+
+    alloc_xhci_contexts(xhci);
+
+    init_xhci_context_params(xhci);
+
+    start_xhci_controller();
+
+    return true;
 }

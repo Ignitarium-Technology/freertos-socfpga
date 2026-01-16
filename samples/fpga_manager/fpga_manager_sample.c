@@ -18,10 +18,10 @@
  * Sample Application for fpga manager.
  *
  * @details
- * @section fpga_mnfr_desc Description
+ * @section fpga_mngr_desc Description
  * This is a sample application to demonstrate the use of the fpga manager to
  * configure the fpga. The fpga manager loads the rbf bitstream data to the
- * fpga fabric via the SDM. It also demostrates the use of fpga partial
+ * fpga fabric via the SDM. It also demonstrates the use of fpga partial
  * reconfiguration after completing the fpga configuration.
  *
  * @section fpga_mngr_pre Prerequisites

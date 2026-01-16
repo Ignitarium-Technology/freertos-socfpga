@@ -82,8 +82,10 @@
 #define GPIO_PINS_PER_REG    (24U)     /*!< Number of GPIO pins having same base address . */
 #define GPIO_INSTANCE1       (0U)  /*!< GPIO instance 0. */
 #define GPIO_INSTANCE0       (1U)   /*!< GPIO instance 1. */
-#define PINMUX_REG(p)    ((((p) < 40U) ? (0x10D13000U) : (0x10D13100U + (4U * \
-    ((p) - 40U)))))                                                /*!< Returns the pinmux register of GPIO pin . */
+#define PINMUX_REG(p)                                                 \
+	(((p) < 40U) ?                                                    \
+	 (0x10D13000U + (4U * (p))) :                                     \
+	 (0x10D13100U + (4U * ((p) - 40U)))) /**< Returns pinmux register */
 #define PINMUX_GPIO        (0x08U)       /*!< GPIO functionality bit. */
 #define PINMUX_MASK        (0x0FU)       /*!< Pin functionality mask. */
 #define GPIO0_BASE_ADDR    (0x10C03200U)             /*!< GPIO instance 0 base address. */
@@ -260,7 +262,7 @@ void gpio_set_callback(gpio_handle_t const hgpio, gpio_callback_t gpio_callback,
  * @brief Read the gpio pin in blocking mode
  *
  * @param[in]  hgpio  The GPIO handle returned in the open() call.
- * @param[out] pstate The the pin state.
+ * @param[out] pstate The pin state.
  *
  * @return
  * - 0:       on success

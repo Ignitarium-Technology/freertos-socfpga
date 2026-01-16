@@ -241,7 +241,7 @@ void spi_task(void)
     if (retval != 0)
     {
         ERROR("Comparison failed");
-        ERROR("Exiting the sample appilcation");
+        ERROR("Exiting the sample application");
         return;
     }
 
@@ -250,7 +250,7 @@ void spi_task(void)
     if (retval != 0)
     {
         ERROR("Failed");
-        ERROR("Exiting the sample appilcation");
+        ERROR("Exiting the sample application");
         return;
     }
     PRINT("Done");

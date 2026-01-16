@@ -171,6 +171,7 @@ static void smmu_prepare_stream_table(uint8_t index)
     smmu_descriptors.stream_table[index].IMP_DEFINED_0 = 0xF;
     smmu_descriptors.stream_table[index].INSTCFG = 0x2;
 
+#ifndef AGILEX3
     if ((index == 0xAU))
     {
         smmu_descriptors.stream_table[index].Config = SMMU_EN_S1_TRANS;
@@ -178,6 +179,7 @@ static void smmu_prepare_stream_table(uint8_t index)
                 (uint64_t)&smmu_descriptors.context_desc_512mb >> 6;
     }
     else
+#endif
     {
         smmu_descriptors.stream_table[index].Config = SMMU_BYPASS_MODE;
         smmu_descriptors.stream_table[index].S1ContextPtr =

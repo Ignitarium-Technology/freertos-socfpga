@@ -93,7 +93,7 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## 4. File: `FreeRTOS/Demo/CORTEX_A55_SOCFPGA/startup/cpu_init.S`
+## 4. File: `FreeRTOS/Demo/SOCFPGA/startup/cpu_init.S`
 
 This file is licensed under **MIT**, with the following copyright:
 

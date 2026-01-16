@@ -14,6 +14,8 @@
 #include "socfpga_xgmac_reg.h"
 #include "socfpga_xgmac_phy_ll.h"
 
+#define XGMAC_CLEAR_SPEED_MASK     0x1FFFFFFFU
+
 void xgmac_set_macaddress(uint32_t base_address, void *address_ptr, uint8_t
         index_val)
 {
@@ -53,7 +55,7 @@ void xgmac_set_macaddress(uint32_t base_address, void *address_ptr, uint8_t
 void  xgmac_setduplex(uint32_t base_address, uint8_t duplex)
 {
     /* Full Duplex */
-    if (duplex == PHY_FULL_DUPLEX)
+    if (duplex == ETH_FULL_DUPLEX)
     {
         DISABLE_BIT(base_address + XGMAC_MAC_EXTENDED_CONFIGURATION, XGMAC_MAC_EXT_CONF_HD);
     }
@@ -68,6 +70,7 @@ void xgmac_setspeed(uint32_t base_address, uint32_t speed)
     uint32_t reg_data = 0;
 
     reg_data = RD_REG32(base_address + XGMAC_MAC_TX_CONFIGURATION);
+    reg_data &= (XGMAC_CLEAR_SPEED_MASK);
     /* 1Gbps */
     if (speed == ETH_SPEED_1000_MBPS)
     {

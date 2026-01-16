@@ -77,7 +77,7 @@ void seu_task(void)
     seu_stat_t seu_err_stats;
     seu_semphr_inject = osal_semaphore_create(&seu_semphr_def_inject);
 
-    PRINT("Sample applicaton for seu and ecc error injection starts");
+    PRINT("Sample application for seu and ecc error injection starts");
     ret = seu_init();
     if (ret != 0)
     {
@@ -145,5 +145,5 @@ void seu_task(void)
         ERROR("Failed to close SEU\n");
     }
 
-    PRINT("Sample applicaton for seu and ecc error injection completed");
+    PRINT("Sample application for seu and ecc error injection completed");
 }

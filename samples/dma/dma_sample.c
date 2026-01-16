@@ -140,7 +140,7 @@ void dma_task(void)
     PRINT("Done.");
 
     PRINT("Triggering the data transfer ...");
-    dma_start_tranfer(dma_handle);
+    dma_start_transfer(dma_handle);
 
     ret_val = osal_semaphore_wait(done_sem, 1000);
 

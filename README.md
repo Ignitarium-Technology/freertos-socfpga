@@ -1,6 +1,6 @@
 # SoC FPGA FreeRTOS SDK
 
-This repository contains the FreeRTOS port and driver components for SoC FPGA family proecessors.
+This repository contains the FreeRTOS port and driver components for SoC FPGA family processors.
 This repository includes a few other repositories as submodules.
 
 <details>
@@ -58,33 +58,33 @@ This repository includes a few other repositories as submodules.
 - **FreeRTOS/portable**
   Root directory to keep the portable layer for the Agilex FreeRTOS port.
 
-- **FreeRTOS/Demo/CORTEX_A55_SOCFPGA**
+- **FreeRTOS/Demo/SOCFPGA**
   Root directory for:
   (i) Kernel test demo applications provided by FreeRTOS
   (ii) Command Line Interface (CLI) application
   (iii) Simple Hello World application
   (iv) Network demo applications, etc.
 
-- **FreeRTOS/Demo/CORTEX_A55_SOCFPGA/startup**
+- **FreeRTOS/Demo/SOCFPGA/startup**
   Startup code for the processor.
 
-- **FreeRTOS/Demo/CORTEX_A55_SOCFPGA/FreeRTOSConfig.h**
+- **FreeRTOS/Demo/SOCFPGA/FreeRTOSConfig.h**
   Kernel configuration parameters.
 
-- **FreeRTOS/Demo/CORTEX_A55_SOCFPGA/FreeRTOSIPConfig.h**
+- **FreeRTOS/Demo/SOCFPGA/FreeRTOSIPConfig.h**
   TCP/IP stack configuration parameters.
 
-- **FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/hello_world**
+- **FreeRTOS/Demo/SOCFPGA/apps/hello_world**
   A simple Hello World application.
 
-- **FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/cli_app**
+- **FreeRTOS/Demo/SOCFPGA/apps/samples/cli_app**
   Contains the implementation of a simple Command Line Interface (CLI) application.
   It provides simple commands to exercise different interfaces.
 
-- **FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/main_full** and **main_blinky**
+- **FreeRTOS/Demo/SOCFPGA/apps/samples/main_full** and **main_blinky**
   These are the blinky and full test applications provided by FreeRTOS to validate the porting layer.
 
-- **FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/main_freertosplus_basic**
+- **FreeRTOS/Demo/SOCFPGA/apps/samples/main_freertosplus_basic**
   Contains implementations of different applications to demonstrate the network stack.
 
 - **drivers**
@@ -115,11 +115,10 @@ and [API Reference](https://www.freertos.org/Documentation/02-Kernel/04-API-refe
 ## Getting started
 
 The following sections describe the quick steps to build and execute using QSPI boot.
-For detailed instructions and other boot modes (SD card, eMMC), please refer to the [tools README](tools/README.md).
 
 ## Getting the toolchain
 
-The toolchain can be downloaded from ARM developer [website](https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-aarch64-none-elf.tar.xz)
+The toolchain can be downloaded from ARM developer [website](https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-aarch64-none-elf.tar.xz).
 
 ### Installing the toolchain
 
@@ -146,6 +145,7 @@ The following steps will generate a qspi image which can be flashed into the PDK
 
 ```bash
 git clone git@github.com:Ignitarium-Technology/freertos-socfpga.git
+cd freertos-socfpga
 git submodule update --init --recursive
 ```
 
@@ -164,52 +164,88 @@ export PATH=$AARCH64_TOOLCHAINPATH/arm-gnu-toolchain-14.3.rel1-x86_64-aarch64-no
 
 The following parameters can be specified during the CMake configuration stage:
 
-- **Debug vs. Release**
+- **AGILEX5 vs. AGILEX3**<br>
+  Select the SOC to build app for, supported SOC's are AGILEX 5 and AGILEX 3
+  ```bash
+  -DSOC=[AGILEX5|AGILEX3]
+  ```
+  Build will default to Agilex 5 if not specified or an invalid option is selected
+
+- **Debug vs. Release**<br>
   By default, the build system compiles in **Release** mode. To build a debug version of the application, specify the option:
   ```bash
   -DCMAKE_BUILD_TYPE=Debug
   ```
 
-- **ATF Log Level**
+- **A55 vs. A76 Boot**<br>
+  By default, the build system compiles for **A55** as the boot core. To tune for A76 boot core version of the application, specify the option:
+  ```bash
+  -DCORE=A76
+  ```
+
+- **ATF Log Level**<br>
   The default ATF log level is set to `LOG_LEVEL_NOTICE`. To use a different ATF debug log level, specify it using:
   ```bash
   -DATF_LOG_LEVEL=<log-level-value>
   ```
 
-- **SOF File**
-  By default, the build looks for the file **ghrd_a5ed065bb32ae6sr0.sof** in the project directory. To use a different SOF file, specify it with:
+- **SOF File**<br>
+  To build SD/eMMC or QSPI image, A .sof file is mandatory.
+  The SOF path can be set with:
   ```bash
   -DSOF_PATH=<sof-path>
   ```
-- **PFG File**
-  If no PFG file is specified, the build system downloads and uses a default PFG file. To use a custom PFG file, provide it using:
+- **PFG File**<br>
+  To build SD/eMMC or QSPI image, A .pfg file is mandatory.
+  Specify a PFG file for either or both according to the build requirements.
   ```bash
-  -DPFG_PATH=<pfg-path>
+  -DPFG_SDMMC=<pfg-file>
+  -DPFG_QSPI=<pfg-file>
   ```
 
 ### Build the desired application
 
-The following applicaitons exist in the repository. Build the application of your choice.
+The following applications exist in the repository. Build the application of your choice.
 * Hello world application <br>
-    For build steps, check the [hello_world README](FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/hello_world/README.md).
+    For build steps, check the [hello_world README](FreeRTOS/Demo/SOCFPGA/apps/hello_world/README.md).
 * Driver samples<br>
     For build steps, check the [driver samples README](samples/README.md).
 * CLI Application <br>
-        For build steps, check the [cli app README](FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/cli_app/README.md).<br>
-* Ethernet demo applicaiton <br>
-        For build steps, check the [enet demo sample README](FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/main_freertosplus_basic/README.md).<br>
+        For build steps, check the [cli app README](FreeRTOS/Demo/SOCFPGA/apps/samples/cli_app/README.md).<br>
+* Ethernet demo application <br>
+        For build steps, check the [enet demo sample README](FreeRTOS/Demo/SOCFPGA/apps/samples/main_freertosplus_basic/README.md).<br>
 * FreeRTOS blinky test <br>
-        For build steps, check the [Blinky sample README](FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/main_blinky/README.md).<br>
+        For build steps, check the [Blinky sample README](FreeRTOS/Demo/SOCFPGA/apps/samples/main_blinky/README.md).<br>
 * FreeRTOS full test <br>
-        For build steps, check the [main_full README](FreeRTOS/Demo/CORTEX_A55_SOCFPGA/apps/samples/main_full/README.md).<br>
+        For build steps, check the [main_full README](FreeRTOS/Demo/SOCFPGA/apps/samples/main_full/README.md).<br>
 
 
 ### Flash the image and execute
 
+#### Agilex 5
 Put the device in JTAG mode to flash the JIC image, refer [Changing MSEL](https://altera-fpga.github.io/rel-25.1/embedded-designs/agilex-5/e-series/premium/gsrd/ug-gsrd-agx5e-premium/#development-kit) section.<br>
-After setting the MSEL Turn on the device, Use the following command to flash the firmware to the device.
+After setting the MSEL Turn on the device, Use the following command to flash the firmware to the device.<br>
+The .jic images will be in the build folder,
+- QSPI boot: <build folder>/qspi_atf_binaries/qspi_image.jic
+- SD card boot: <build folder>/sd_atf_binaries/qspi_image.jic
+- EMMC boot: <build folder>/emmc_atf_binaries/qspi_image.jic
+Navigate to the appropriate folder and run the following command
+
 ```bash
 #use the image qspi_image.jic
-quartus_pgm -c 1 -m jtag -o "piv;<image name>.jic"
+quartus_pgm -c 1 -m jtag -o "piv;qspi_image.jic"
 ```
 Power down the device, set the MSEL back to QSPI mode and then power on to boot the application.
+#### Agilex 3
+Power on the device and use the following command to flash the firmware to the device
+```bash
+#use the image qspi_image.jic
+quartus_pgm -c 1 -m jtag -o "piv;qspi_image.jic@2"
+```
+Power cycle the device
+
+### Detailed build steps
+Visit tools [README](tools/README.md) for detailed steps on
+- Building ATF
+- Packaging build artifacts for different boot modes
+- Booting in various boot modes
