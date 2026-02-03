@@ -1,0 +1,115 @@
+name: Issue Report
+description: Report an issue with SOC/Core selection and full environment details
+title: "[Issue]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please fill this form completely. Fields marked required must be filled.
+
+  # SOC selection (at least one required)
+  - type: checkboxes
+    id: soc
+    attributes:
+      label: SOC
+      description: Select at least one SOC (you can select both).
+      options:
+        - label: Agilex5
+        - label: Agilex3
+    validations:
+      required: true
+
+  # Core selection (at least one required)
+  - type: checkboxes
+    id: core
+    attributes:
+      label: Core
+      description: Select at least one Core (you can select both).
+      options:
+        - label: A55
+        - label: A76
+    validations:
+      required: true
+
+  # Build type selection (at least one required)
+  - type: checkboxes
+    id: build_type
+    attributes:
+      label: Build type
+      description: Select at least one build type (you can select both if applicable).
+      options:
+        - label: Release
+        - label: Debug
+    validations:
+      required: true
+
+  # Mandatory release version/tag
+  - type: input
+    id: release_version
+    attributes:
+      label: Release version/tag
+      description: Provide the release version or tag you are using.
+      placeholder: "e.g. v1.2.3, release-2026.01, main@<commit>"
+    validations:
+      required: true
+
+  # Mandatory host system details
+  - type: input
+    id: host_os
+    attributes:
+      label: OS and version
+      description: Host system OS details where you build/run tools.
+      placeholder: "e.g. Ubuntu 24.04, Windows 11, macOS 14"
+    validations:
+      required: true
+
+  # Mandatory issue description
+  - type: textarea
+    id: issue_description
+    attributes:
+      label: Please describe the issue
+      description: Provide a clear and concise description of the issue.
+      placeholder: "What happened? What did you expect?"
+    validations:
+      required: true
+
+  # Mandatory steps to reproduce
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Provide exact steps so we can reproduce the issue.
+      placeholder: |
+        1. Build with ...
+        2. Flash/Run ...
+        3. Observe ...
+    validations:
+      required: true
+
+  # Mandatory expected behavior
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expectation/output
+      description: What should happen instead?
+      placeholder: "Expected output/behavior..."
+    validations:
+      required: true
+
+  # File attachments note
+  - type: markdown
+    attributes:
+      value: |
+        📎 **Attachments:** You can attach files by dragging and dropping them into the issue after submitting,
+        or paste logs directly into the fields below.
+
+  # Optional additional context
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context
+      description: Any extra info (logs, screenshots, commit hash, config, etc.)
+      placeholder: "Add anything else helpful..."
+    validations:
+      required: false
