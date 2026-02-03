@@ -20,8 +20,8 @@
 #define MAX_CHANNEL_NUM               (4U)
 #define MAX_LLI_PER_CHANNEL           10U
 #define CH_SUSPEND_TIMEOUT_COUNT      (1000U)
-/* Max block size available is 2^21 */
-#define MAX_BLOCK_SIZE    0x1FFFFFU
+/* Max block size available is 32767 */
+#define MAX_BLOCK_SIZE    0x7FFFU
 
 /* DMA channel registers */
 struct dma_channel_reg_list
@@ -170,54 +170,6 @@ dma_handle_t dma_open(uint32_t instance, uint32_t ch)
     }
     return phandle;
 }
-/**
- * @brief Find the optimum transfer width
- *
- * The total transfer size shall be aligned to the transfer width.
- * Find the maximum possible transfer width based on the transfer size.
- * We restrict the maximum transfer width to 8 bytes even though the
- * hardware supports up to 64 bytes
- */
-static dma_xfer_width_t dma_get_transfer_width(dma_handle_t const hdma, uint32_t block_size)
-{
-    dma_xfer_width_t dma_transfer_width;
-
-    if (hdma->direction == DMA_MEM_TO_MEM_DMAC)
-    {
-        if ((block_size & 0x7U) == 0)
-        {
-            dma_transfer_width = DMA_ID_XFER_WIDTH8;
-        }
-        else if ((block_size & 0x3U) == 0)
-        {
-            dma_transfer_width = DMA_TRANSFER_WIDTH4;
-        }
-        else if ((block_size & 0x1U) == 0)
-        {
-            dma_transfer_width = DMA_TRANSFER_WIDTH2;
-        }
-        else
-        {
-            dma_transfer_width = DMA_TRANSFER_WIDTH1;
-        }
-    }
-    else
-    {
-        if ((block_size & 0x3U) == 0)
-        {
-            dma_transfer_width = DMA_TRANSFER_WIDTH4;
-        }
-        else if ((block_size & 0x1U) == 0)
-        {
-            dma_transfer_width = DMA_TRANSFER_WIDTH2;
-        }
-        else
-        {
-            dma_transfer_width = DMA_TRANSFER_WIDTH1;
-        }
-    }
-    return dma_transfer_width;
-}
 
 /**
  * @brief Get the DMA burst length
@@ -285,12 +237,11 @@ int32_t dma_config(dma_handle_t const hdma, dma_config_t *pcfg)
     return 0;
 }
 
-int32_t dma_setup_transfer(dma_handle_t const hdma, dma_xfer_cfg_t *xfer_list, uint32_t num_xfers)
+int32_t dma_setup_transfer(dma_handle_t const hdma, dma_xfer_cfg_t *xfer_list, uint32_t num_xfers, dma_xfer_width_t src_width, dma_xfer_width_t dst_width)
 {
     uint64_t val;
     uint64_t transfer_size;
     uint32_t i;
-    dma_xfer_width_t src_width, dst_width;
     dma_burst_len_t src_burst_len, dst_burst_len;
     struct dma_channel_reg_list *plinked_list;
     dma_xfer_cfg_t *ptransfer_cfg;
@@ -336,8 +287,6 @@ int32_t dma_setup_transfer(dma_handle_t const hdma, dma_xfer_cfg_t *xfer_list, u
 
     for (i = 0U; i < num_xfers; i++)
     {
-        src_width = dma_get_transfer_width(hdma, ptransfer_cfg->blk_size);
-        dst_width = src_width;
         dma_get_burst_len(hdma, &src_burst_len, &dst_burst_len);
         transfer_size = (((uint64_t)src_width << DMA_CH_CTL_SRC_TR_WIDTH_POS) |
                 ((uint64_t)dst_width << DMA_CH_CTL_DST_TR_WIDTH_POS));
