@@ -127,8 +127,8 @@ void dma_task(void)
         ERROR("Exiting DMA sample application");
         return;
     }
-    ret_val = dma_setup_transfer(dma_handle, &blk_trnsfr_list[0], NUM_BLK);
-
+    /* source and destination width is set to DMA_ID_XFER_WIDTH8 (8 bytes) */
+    ret_val = dma_setup_transfer(dma_handle, &blk_trnsfr_list[0], NUM_BLK, DMA_ID_XFER_WIDTH8, DMA_ID_XFER_WIDTH8);
     if (ret_val != 0)
     {
         ERROR("Setting up DMA channel failed");

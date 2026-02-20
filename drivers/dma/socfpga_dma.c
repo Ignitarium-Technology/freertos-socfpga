@@ -85,32 +85,6 @@ static struct dma_channel_reg_list plinked_list_chain[DMA_MAX_INSTANCE]
 
 void pdma_irq_handler(void *data);
 
-/*
- * @brief Get the current status of the DMA channel
- */
-static dma_ch_state_t dma_get_channel_status(dma_handle_t hdma)
-{
-    uint64_t val;
-    /*Setting as Idle by defauilt*/
-    dma_ch_state_t ret = DMA_CH_IDLE;
-    val = RD_REG64(hdma->base_address + DMA_DMAC_CHENREG);
-    /* Active channel */
-    if (((val >> (CHENREG_CH_EN_POS + hdma->channel_num)) & 1U) == 1U)
-    {
-        ret = DMA_CH_ACTIVE;
-    }
-    /* Suspended channel*/
-    if (((val >> (CHENREG_CH_SUSP_POS + hdma->channel_num)) & 1U) == 1U)
-    {
-        ret = DMA_CH_SUSPENDED;
-    }
-    /* Abort channel*/
-    if (((val >> (CHENREG_CH_ABORT_POS + hdma->channel_num)) & 1U) == 1U)
-    {
-        ret = DMA_CH_ABORT;
-    }
-    return ret;
-}
 dma_handle_t dma_open(uint32_t instance, uint32_t ch)
 {
     int32_t status;
@@ -237,7 +211,8 @@ int32_t dma_config(dma_handle_t const hdma, dma_config_t *pcfg)
     return 0;
 }
 
-int32_t dma_setup_transfer(dma_handle_t const hdma, dma_xfer_cfg_t *xfer_list, uint32_t num_xfers, dma_xfer_width_t src_width, dma_xfer_width_t dst_width)
+int32_t dma_setup_transfer(dma_handle_t const hdma, dma_xfer_cfg_t *xfer_list, uint32_t num_xfers,
+                           dma_xfer_width_t src_width, dma_xfer_width_t dst_width)
 {
     uint64_t val;
     uint64_t transfer_size;
