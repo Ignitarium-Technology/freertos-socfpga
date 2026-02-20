@@ -125,11 +125,8 @@ typedef enum
     DMA_TRANSFER_WIDTH1 = 0, /*Transfer width of 1 byte*/
     DMA_TRANSFER_WIDTH2, /*!<Transfer width of 2 bytes*/
     DMA_TRANSFER_WIDTH4, /*!<Transfer width of 4 bytes*/
-    DMA_ID_XFER_WIDTH8, /*!<Transfer width of 8 bytes*/
-    DMA_ID_XFER_WIDTH16, /*!<Transfer width of 16 bytes*/
-    DMA_ID_XFER_WIDTH32, /*!<Transfer width of 32 bytes*/
-    DMA_ID_XFER_WIDTH64 = 6, /*!<Transfer width of 64 bytes*/
-    DMA_ID_XFER_WIDTH_MAX = 6 /*!<Maximum transfer width*/
+    DMA_ID_XFER_WIDTH8 = 3, /*!<Transfer width of 8 bytes*/
+    DMA_ID_XFER_WIDTH_MAX = 3 /*!<Maximum transfer width*/
 } dma_xfer_width_t;
 
 /**
@@ -308,6 +305,8 @@ int32_t dma_config(dma_handle_t const hdma, dma_config_t *pcfg);
  *                      the soource address, destination aaddress and
  *                      transfer size can be specified
  * @param[in] numxfers  The number of blocks in the linked list
+ * @param[in] src_width  The source transfer width
+ * @param[in] dst_width  The destination transfer width
  *
  * @return
  * - 0, on success
@@ -316,7 +315,7 @@ int32_t dma_config(dma_handle_t const hdma, dma_config_t *pcfg);
  * - -EBUSY:  if another transfer is in progress.
  *
  */
-int32_t dma_setup_transfer(dma_handle_t const hdma, dma_xfer_cfg_t *xfer_list, uint32_t numxfers);
+int32_t dma_setup_transfer(dma_handle_t const hdma, dma_xfer_cfg_t *xfer_list, uint32_t numxfers, dma_xfer_width_t src_width, dma_xfer_width_t dst_width);
 
 /**
  * @brief Start the data transfer
