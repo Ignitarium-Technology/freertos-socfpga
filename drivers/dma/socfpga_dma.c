@@ -184,6 +184,15 @@ int32_t dma_config(dma_handle_t const hdma, dma_config_t *pcfg)
     {
         hdma->config |= ((uint64_t)pcfg->peri_id << DMA_CH_CFG2_SRC_PER_POS);
     }
+    /* set maximum oustanding requests to 16 for MEM to MEM transfers */
+    if (pcfg->ch_dir == DMA_MEM_TO_MEM_DMAC)
+    {
+        hdma->config |= ((uint64_t)DMA_CH_CFG2_DST_OSR_LMT_MASK &
+                        ((uint64_t)15 << DMA_CH_CFG2_DST_OSR_LMT_POS));
+        hdma->config |= ((uint64_t)DMA_CH_CFG2_SRC_OSR_LMT_MASK &
+                        ((uint64_t)15 << DMA_CH_CFG2_SRC_OSR_LMT_POS));
+    }
+
     hdma->config &= ~(uint64_t)(DMA_CH_CFG2_DST_MULTBLK_TYPE_MASK |
             DMA_CH_CFG2_SRC_MULTBLK_TYPE_MASK);
 #ifdef MULTI_BLK_LLI_MODE_ENABLED
