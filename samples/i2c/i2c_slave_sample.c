@@ -130,6 +130,7 @@ static void fill_buf(uint8_t *buf, uint32_t len, uint8_t seed)
  * - Use read_requested/read_processed to stream out a TX buffer.
  * - If you need larger payloads, increase XFER_SIZE and buffers.
  */
+/* Called once when master starts a write to this slave. */
 static void handle_slave_write_requested(i2c_handle_t hi2c, void *param)
 {
     slave_ctx_t *c = (slave_ctx_t *)param;
@@ -141,6 +142,7 @@ static void handle_slave_write_requested(i2c_handle_t hi2c, void *param)
     }
 }
 
+/* Called for each byte written by master to this slave. */
 static void handle_slave_write_received(i2c_handle_t hi2c, uint8_t data, void *param)
 {
     slave_ctx_t *c = (slave_ctx_t *)param;
@@ -161,6 +163,7 @@ static void handle_slave_write_received(i2c_handle_t hi2c, uint8_t data, void *p
     }
 }
 
+/* Called on first RD_REQ; provide first byte for master read. */
 static void handle_slave_read_requested(i2c_handle_t hi2c, uint8_t *data, void *param)
 {
     slave_ctx_t *c = (slave_ctx_t *)param;
@@ -176,18 +179,29 @@ static void handle_slave_read_requested(i2c_handle_t hi2c, uint8_t *data, void *
     }
 }
 
+/* Called on subsequent RD_REQ events; provide next read byte. */
 static void handle_slave_read_processed(i2c_handle_t hi2c, uint8_t *data, void *param)
 {
     slave_ctx_t *c = (slave_ctx_t *)param;
 
     (void)hi2c;
-    (void)data;
-    if ((c != NULL) && (c->tx_off < c->tx_len))
+    if ((c == NULL) || (data == NULL))
+    {
+        return;
+    }
+
+    if (c->tx_off + 1U < c->tx_len)
     {
         c->tx_off++;
+        *data = c->tx_buf[c->tx_off];
+    }
+    else
+    {
+        *data = 0xEEU;
     }
 }
 
+/* Called when STOP is detected for current transaction. */
 static void handle_slave_stop(i2c_handle_t hi2c, void *param)
 {
     (void)hi2c;
@@ -241,17 +255,17 @@ static void i2c_slave_xfer_task(void *arg)
     }
 
     /* Configure I2C1 as a slave with IRQ callbacks. */
-    scfg.slave_address = SLAVE_ADDR;
+    scfg.slave_addr = SLAVE_ADDR;
     scfg.is_10bit_addr = false;
     scfg.tx_default_byte = 0xEEU;
     scfg.rx_tl = 0U;
     scfg.tx_tl = 0U;
-    scfg.write_requested_cb = handle_slave_write_requested;
-    scfg.write_received_cb = handle_slave_write_received;
-    scfg.read_requested_cb = handle_slave_read_requested;
-    scfg.read_processed_cb = handle_slave_read_processed;
+    scfg.wr_requsted_cb = handle_slave_write_requested;
+    scfg.wr_received_cb = handle_slave_write_received;
+    scfg.rd_requested_cb = handle_slave_read_requested;
+    scfg.rd_processed_cb = handle_slave_read_processed;
     scfg.stop_cb = handle_slave_stop;
-    scfg.cb_usercontext = &ctx;
+    scfg.cb_usr_ctxt = &ctx;
 
     if (i2c_ioctl(slave, I2C_SLAVE_INIT, &scfg) != 0)
     {

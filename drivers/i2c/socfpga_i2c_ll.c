@@ -240,7 +240,7 @@ void i2c_clear_interrupt(uint32_t base_addr)
 /**
  * @brief Set target address
  */
-void i2c_set_target_addr(uint32_t base_addr, uint32_t slave_addr)
+void i2c_set_target_addr(uint32_t base_addr, uint16_t slave_addr)
 {
     uint32_t val;
     /*Disable i2c*/
@@ -249,10 +249,9 @@ void i2c_set_target_addr(uint32_t base_addr, uint32_t slave_addr)
     WR_REG32(base_addr + I2C_ENABLE, val);
 
     /*
-     * Set the Target address
-     * And keep the 10 bit addressing enable cleared
+     * Set the target address field only; preserve other IC_TAR bits.
      */
-    val = ((slave_addr) << I2C_TAR_IC_TAR_POS);
+    val = (((uint32_t)slave_addr & I2C_TAR_IC_TAR_MASK) << I2C_TAR_IC_TAR_POS);
     WR_REG32(base_addr + I2C_TAR, val);
 
     /*Enable i2c*/
@@ -377,15 +376,6 @@ uint32_t i2c_config_master(uint32_t base_addr, uint32_t speed)
 
         WR_REG32(base_addr + I2C_FS_SCL_HCNT, FS_SCL_HCNT_VAL);
         WR_REG32(base_addr + I2C_FS_SCL_LCNT, FS_SCL_HCNT_VAL);
-    }
-    else if ((speed > I2C_FAST_MODE_PLUS_BPS) && (speed <= I2C_HIGH_SPEED_BPS))
-    {
-        val = RD_REG32(base_addr + I2C_CON) & ~I2C_CON_SPEED_MASK;
-        val |= (I2C_CONTRL_HIGH_SPEED << I2C_CON_SPEED_POS);
-        WR_REG32(base_addr + I2C_CON, val);
-        WR_REG32(base_addr + I2C_SS_SCL_HCNT, SS_SCL_HCNT_VAL);
-        WR_REG32(base_addr + I2C_SS_SCL_LCNT, SS_SCL_HCNT_VAL);
-
     }
     else
     {

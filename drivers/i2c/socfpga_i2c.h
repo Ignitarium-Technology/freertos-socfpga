@@ -172,7 +172,7 @@ typedef enum
     I2C_SEND_NO_STOP, /*!< Set flag to not send stop after the current transfer */
     /*!< Default is always stop for every transaction */
     /*!< Flag will auto reset to stop after one transaction if you set no stop */
-    I2C_SET_SLAVE_ADDR, /*!< This can be either 7-bit address or 10-bit address. All the operations use this slave address after it is set. */
+    I2C_SET_SLAVE_ADDR, /*!< Set 7-bit target address. */
     I2C_SET_MASTER_CFG, /*!< Sets the I2C bus frequency and timeout using the struct #i2c_config_t, default speed is Standard mode. */
     I2C_GET_MASTER_CFG, /*!< Gets the I2C bus frequency and timeout set for the I2C master. */
     I2C_GET_BUS_STATE, /*!< Get the current I2C bus status. Returns eI2CBusIdle or eI2CBusy */
@@ -264,63 +264,64 @@ typedef void (*i2c_callback_t)(i2c_op_status_t op_status, void *param);
 /**
  * @brief Callback invoked when an external master initiates a write to this slave.
  *
- * Called from ISR context before any data bytes are received. Allows the
- * application to prepare its receive buffer.
+ * Called from ISR context on the first byte phase of a slave-write transaction,
+ * before @ref i2c_write_received_cb_t starts firing for incoming bytes.
  *
  * @param[in] hi2c  I2C handle.
  * @param[in] param User context.
  */
-typedef void (*i2c_slave_write_requested_cb_t)(i2c_handle_t hi2c, void *param);
+typedef void (*i2c_write_requested_cb_t)(i2c_handle_t hi2c, void *param);
 
 /**
  * @brief Callback invoked for each byte received from an external master.
  *
- * Called from ISR context once per received byte.
+ * Called from ISR context once per received byte during a slave-write
+ * transaction, after @ref i2c_write_requested_cb_t.
  *
  * @param[in] hi2c  I2C handle.
  * @param[in] data  The received byte.
  * @param[in] param User context.
  */
-typedef void (*i2c_slave_write_received_cb_t)(i2c_handle_t hi2c, uint8_t data,
+typedef void (*i2c_write_received_cb_t)(i2c_handle_t hi2c, uint8_t data,
         void *param);
 
 /**
  * @brief Callback invoked when an external master requests to read from this slave.
  *
- * Called from ISR context on the first RD_REQ of a read transaction. The
- * callback must fill @p data with the first byte to transmit.
+ * Called from ISR context on the first RD_REQ of a slave-read transaction.
+ * The callback must provide the first byte to transmit in @p data.
  *
  * @param[in]  hi2c  I2C handle.
  * @param[out] data  Pointer to store the byte to transmit.
  * @param[in]  param User context.
  */
-typedef void (*i2c_slave_read_requested_cb_t)(i2c_handle_t hi2c, uint8_t *data,
+typedef void (*i2c_read_requested_cb_t)(i2c_handle_t hi2c, uint8_t *data,
         void *param);
 
 /**
  * @brief Callback invoked after each byte has been transmitted to an external master.
  *
- * Called from ISR context after each byte write. Allows the application to
- * advance its transmit pointer. @p data may be filled with the next byte
- * as a hint, but the driver will call @c read_requested_cb again on the
- * next RD_REQ.
+ * Called from ISR context on subsequent RD_REQ events after
+ * @ref i2c_read_requested_cb_t. Use this to advance the transmit stream and
+ * provide the next byte in @p data.
  *
  * @param[in]  hi2c  I2C handle.
  * @param[out] data  Pointer to optionally store the next byte.
  * @param[in]  param User context.
  */
-typedef void (*i2c_slave_read_processed_cb_t)(i2c_handle_t hi2c, uint8_t *data,
+typedef void (*i2c_read_processed_cb_t)(i2c_handle_t hi2c, uint8_t *data,
         void *param);
 
 /**
  * @brief Callback invoked when a STOP condition is detected on the bus.
  *
- * Called from ISR context. Signals the end of the current transaction.
+ * Called from ISR context at end-of-transaction for the current slave write
+ * or slave read sequence.
  *
  * @param[in] hi2c  I2C handle.
  * @param[in] param User context.
  */
-typedef void (*i2c_slave_stop_cb_t)(i2c_handle_t hi2c, void *param);
+typedef void (*i2c_stop_cb_t)(i2c_handle_t hi2c, void *param);
 
 /**
  * @brief I2C slave mode configuration.
@@ -330,7 +331,7 @@ typedef void (*i2c_slave_stop_cb_t)(i2c_handle_t hi2c, void *param);
  */
 typedef struct i2c_slave_config
 {
-    uint16_t slave_address;
+    uint16_t slave_addr;
     bool is_10bit_addr;
     bool stop_det_ifaddressed;
     bool ack_general_call;
@@ -338,12 +339,12 @@ typedef struct i2c_slave_config
     uint8_t rx_tl;  /*!< RX FIFO threshold (I2C_RX_TL); 0 = fire after every byte. */
     uint8_t tx_tl;  /*!< TX FIFO threshold (I2C_TX_TL); 0 = fire when TX FIFO is empty. */
 
-    i2c_slave_write_requested_cb_t  write_requested_cb;
-    i2c_slave_write_received_cb_t   write_received_cb;
-    i2c_slave_read_requested_cb_t   read_requested_cb;
-    i2c_slave_read_processed_cb_t   read_processed_cb;
-    i2c_slave_stop_cb_t             stop_cb;
-    void *cb_usercontext;
+    i2c_write_requested_cb_t  wr_requsted_cb; /*!< First callback for master->slave write transaction. */
+    i2c_write_received_cb_t   wr_received_cb; /*!< Per-byte callback for master->slave write data. */
+    i2c_read_requested_cb_t   rd_requested_cb; /*!< First callback for slave->master read transaction (first byte). */
+    i2c_read_processed_cb_t   rd_processed_cb; /*!< Per-byte callback after first read byte to provide subsequent bytes. */
+    i2c_stop_cb_t             stop_cb; /*!< End-of-transaction callback on STOP detect. */
+    void *cb_usr_ctxt; /*!< User context passed unchanged to all slave callbacks. */
 } i2c_slave_config_t;
 
 /**
@@ -374,7 +375,8 @@ i2c_handle_t i2c_open(uint32_t instance);
  * @note This callback will not be invoked when synchronous operation completes.
  * @note This callback is per handle. Each instance has its own callback.
  * @note Single callback is used for both read_async and write_async. Newly set callback overrides the one previously set.
- * @warning If the input handle is invalid, this function silently takes no action.
+ * @note If the input handle is invalid (NULL), this function logs an error
+ *       and returns.
  *
  * @param[in] hi2c     The I2C peripheral handle returned in the open() call.
  * @param[in] callback The callback function to be called on completion of transaction.
@@ -492,7 +494,7 @@ int32_t i2c_read_async(i2c_handle_t const hi2c, void *const buf, size_t
 /**
  * @brief Starts an I2C write operation in asynchronous mode.
  *
- * Works for both master and slave roles. @p buf is always a byte buffer;
+ * Works for both master and slave roles.
  * the driver expands bytes to the required IC_DATA_CMD word format internally.
  *
  * Master: writes @p nbytes to the configured target slave device using
@@ -550,7 +552,7 @@ int32_t i2c_write_async(i2c_handle_t const hi2c, void *const buf, size_t
  *
  * @note I2C_SEND_NO_STOP is called at every operation you want to not send stop condition.
  *
- * @note I2C_SET_SLAVE_ADDR sets either 7-bit address or 10-bit address, according to hardware's capability.
+ * @note I2C_SET_SLAVE_ADDR sets a 7-bit target address for master transactions.
  * This request expects 2 bytes buffer (uint16_t)
  *
  * @note I2C_GET_TX_NBYTES returns the number of written bytes in last transaction.

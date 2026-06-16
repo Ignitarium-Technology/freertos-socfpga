@@ -408,9 +408,9 @@ void spi_select_chip(uint32_t instance, uint32_t slave)
 /**
  * @brief Write data to Tx FIFO.
  */
-uint16_t spi_write_fifo(uint32_t base_addr, uint8_t *buf, uint16_t bytes)
+uint32_t spi_write_fifo(uint32_t base_addr, uint8_t *buf, uint32_t bytes)
 {
-    uint16_t bytes_done = 0;
+    uint32_t bytes_done = 0;
 
     /* dummy write */
     if (buf == NULL)
@@ -454,9 +454,9 @@ uint16_t spi_write_fifo(uint32_t base_addr, uint8_t *buf, uint16_t bytes)
 /**
  * @brief Read data from Rx FIFO.
  */
-uint16_t spi_read_fifo(uint32_t base_addr, uint8_t *buf, uint16_t bytes)
+uint32_t spi_read_fifo(uint32_t base_addr, uint8_t *buf, uint32_t bytes)
 {
-    uint16_t bytes_done = 0;
+    uint32_t bytes_done = 0;
 
     /* dummy read */
     if (buf == NULL)

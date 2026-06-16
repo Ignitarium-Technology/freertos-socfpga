@@ -431,6 +431,19 @@ int32_t dma_stop_transfer(dma_handle_t const hdma)
     return 0;
 }
 
+int32_t dma_get_dst_ptr(dma_handle_t const hdma, uint64_t *dst_ptr)
+{
+    if ((hdma == NULL) || (dst_ptr == NULL))
+    {
+        ERROR("DMAC handle or output pointer cannot be NULL");
+        return -EINVAL;
+    }
+
+    *dst_ptr = RD_REG64(hdma->ch_offset + DMA_CH_DAR);
+
+    return 0;
+}
+
 int32_t dma_close(dma_handle_t const hdma)
 {
     if (hdma == NULL)

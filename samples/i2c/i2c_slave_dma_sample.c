@@ -183,12 +183,14 @@ static void handle_slave_dma_complete(i2c_op_status_t status, void *param)
  * Application note:
  * - If you want a mixed DMA/IRQ design, replace these with real callbacks.
  */
+/* Stub for wr_requsted_cb: unused in DMA slave sample flow. */
 static void handle_stub_write_requested(i2c_handle_t handle, void *param)
 {
     (void)handle;
     (void)param;
 }
 
+/* Stub for wr_received_cb: unused in DMA slave sample flow. */
 static void handle_stub_write_received(i2c_handle_t handle, uint8_t data, void *param)
 {
     (void)handle;
@@ -196,6 +198,7 @@ static void handle_stub_write_received(i2c_handle_t handle, uint8_t data, void *
     (void)param;
 }
 
+/* Stub for rd_requested_cb: unused in DMA slave sample flow. */
 static void handle_stub_read_requested(i2c_handle_t handle, uint8_t *data, void *param)
 {
     (void)handle;
@@ -203,6 +206,7 @@ static void handle_stub_read_requested(i2c_handle_t handle, uint8_t *data, void 
     (void)param;
 }
 
+/* Stub for rd_processed_cb: unused in DMA slave sample flow. */
 static void handle_stub_read_processed(i2c_handle_t handle, uint8_t *data, void *param)
 {
     (void)handle;
@@ -210,6 +214,7 @@ static void handle_stub_read_processed(i2c_handle_t handle, uint8_t *data, void 
     (void)param;
 }
 
+/* Stub for stop_cb: unused in DMA slave sample flow. */
 static void handle_stub_stop(i2c_handle_t handle, void *param)
 {
     (void)handle;
@@ -275,17 +280,17 @@ static void i2c_slave_xfer_task(void *arg)
     }
 
     /* Configure I2C1 as a slave with DMA enabled. */
-    scfg.slave_address = SLAVE_ADDR;
+    scfg.slave_addr = SLAVE_ADDR;
     scfg.is_10bit_addr = false;
     scfg.tx_default_byte = 0xEEU;
     scfg.rx_tl = 0U;
     scfg.tx_tl = 0U;
-    scfg.write_requested_cb = handle_stub_write_requested;
-    scfg.write_received_cb = handle_stub_write_received;
-    scfg.read_requested_cb = handle_stub_read_requested;
-    scfg.read_processed_cb = handle_stub_read_processed;
+    scfg.wr_requsted_cb = handle_stub_write_requested;
+    scfg.wr_received_cb = handle_stub_write_received;
+    scfg.rd_requested_cb = handle_stub_read_requested;
+    scfg.rd_processed_cb = handle_stub_read_processed;
     scfg.stop_cb = handle_stub_stop;
-    scfg.cb_usercontext = NULL;
+    scfg.cb_usr_ctxt = NULL;
     if (i2c_ioctl(slave, I2C_SLAVE_INIT, &scfg) != 0)
     {
         ERROR("Slave: I2C_SLAVE_INIT failed");

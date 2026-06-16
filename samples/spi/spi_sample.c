@@ -77,7 +77,7 @@
  */
 #define EEPROM_ADDR          0x2780
 #define EEPROM_PAGE_SIZE     64U
-#define XFER_SIZE            97U
+#define XFER_SIZE            64U
 
 /**
  * Configurable parameters for SPI controller

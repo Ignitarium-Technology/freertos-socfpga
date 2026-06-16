@@ -35,7 +35,7 @@ uint32_t i2c_read_status(uint32_t base_addr);
 
 void i2c_clear_interrupt(uint32_t base_addr);
 
-void i2c_set_target_addr(uint32_t base_addr, uint32_t slave_addr);
+void i2c_set_target_addr(uint32_t base_addr, uint16_t slave_addr);
 
 void i2c_deinit(uint32_t base_addr);
 

@@ -57,8 +57,8 @@ void spi_disable(uint32_t base_addr);
 
 uint32_t spi_get_freq(uint32_t base_addr);
 
-uint16_t spi_write_fifo(uint32_t base_addr, uint8_t *buf, uint16_t bytes);
-uint16_t spi_read_fifo(uint32_t base_addr, uint8_t *buf, uint16_t bytes);
+uint32_t spi_write_fifo(uint32_t base_addr, uint8_t *buf, uint32_t bytes);
+uint32_t spi_read_fifo(uint32_t base_addr, uint8_t *buf, uint32_t bytes);
 
 uint32_t spi_get_interrupt_status(uint32_t base_addr);
 void spi_enable_interrupt(uint32_t base_addr, uint32_t ir_id);

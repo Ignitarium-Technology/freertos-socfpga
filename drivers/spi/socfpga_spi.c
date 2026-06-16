@@ -63,10 +63,10 @@ struct spi_handle
     spi_role_t role;
     uint32_t base_addr;
     uint32_t slave_id;
-    uint16_t tx_size;
-    uint16_t rx_size;
-    uint16_t tx_bytes_left;
-    uint16_t rx_bytes_left;
+    uint32_t tx_size;
+    uint32_t rx_size;
+    uint32_t tx_bytes_left;
+    uint32_t rx_bytes_left;
     uint8_t rx_threshold;
     uint8_t *tx_buf;
     uint8_t *rx_buf;
@@ -93,8 +93,9 @@ static dma_peri_id_t spi_get_dma_tx_peri_id(uint32_t instance, spi_role_t role);
 static dma_peri_id_t spi_get_dma_rx_peri_id(uint32_t instance, spi_role_t role);
 static void spi_dma_callback(void *p_usr_cntxt);
 static void spi_dma_close_channels(spi_handle_t hspi);
+static void spi_drain_fifo(spi_handle_t hspi);
 static void spi_setup_dma_xfer(spi_handle_t hspi, uint32_t *tx_src,
-        uint8_t *rx_dst, uint16_t nbytes, uint32_t *pblk_cnt);
+        uint8_t *rx_dst, uint32_t nbytes, uint32_t *pblk_cnt);
 static int32_t spi_dma_init(spi_handle_t hspi, spi_dma_config_t *cfg);
 static int32_t spi_dma_deinit(spi_handle_t hspi);
 
@@ -162,7 +163,7 @@ static dma_peri_id_t spi_get_dma_rx_peri_id(uint32_t instance, spi_role_t role)
 }
 
 static void spi_setup_dma_xfer(spi_handle_t hspi, uint32_t *tx_src,
-        uint8_t *rx_dst, uint16_t nbytes, uint32_t *pblk_cnt)
+        uint8_t *rx_dst, uint32_t nbytes, uint32_t *pblk_cnt)
 {
     uint32_t blk_cnt;
     uint32_t blk_idx;
@@ -431,9 +432,15 @@ spi_handle_t spi_slave_open(uint32_t instance)
 int32_t spi_set_callback(spi_handle_t const hspi,
         spi_callback_t callback, void *pcntxt)
 {
-    if (hspi == NULL)
+    if (spi_is_handle_valid(hspi) == false)
     {
         ERROR("Invalid SPI handle");
+        return -EINVAL;
+    }
+
+    if (hspi->is_open == false)
+    {
+        ERROR("SPI Instance not open");
         return -EINVAL;
     }
 
@@ -515,7 +522,7 @@ int32_t spi_ioctl(spi_handle_t const hspi, spi_ioctl_t cmd, void *const buf)
             result = -EINVAL;
             break;
         }
-        *(uint16_t *)buf = hspi->tx_size - hspi->tx_bytes_left;
+        *(uint32_t *)buf = hspi->tx_size - hspi->tx_bytes_left;
         break;
 
     case SPI_GET_RX_NBYTES:
@@ -525,7 +532,7 @@ int32_t spi_ioctl(spi_handle_t const hspi, spi_ioctl_t cmd, void *const buf)
             result = -EINVAL;
             break;
         }
-        *(uint16_t *)buf = hspi->rx_size - hspi->rx_bytes_left;
+        *(uint32_t *)buf = hspi->rx_size - hspi->rx_bytes_left;
         break;
 
     case SPI_ENABLE_DMA:
@@ -648,9 +655,10 @@ static int32_t spi_dma_deinit(spi_handle_t hspi)
 /**
  * @brief Start SPI transfer
  */
-static void spi_xfer(spi_handle_t hspi, uint16_t nbytes)
+static void spi_xfer(spi_handle_t hspi, uint32_t nbytes)
 {
     uint32_t mode;
+    uint32_t thr = SPI_RXFTLR_DEFAULT;
 
     hspi->tx_bytes_left = hspi->is_tx_on ? nbytes : 0U;
     hspi->rx_bytes_left = nbytes;
@@ -677,9 +685,8 @@ static void spi_xfer(spi_handle_t hspi, uint16_t nbytes)
          * Set RXFTLR so RXFIS fires before FIFO is full
          * Use a depth-based default and lower it as we near completion
          */
+        if (hspi->is_rx_on == true)
         {
-            uint32_t thr = SPI_RXFTLR_DEFAULT;
-
             if (nbytes <= thr)
             {
                 thr = (uint32_t)nbytes - 1U;
@@ -712,7 +719,7 @@ static void spi_xfer(spi_handle_t hspi, uint16_t nbytes)
  * @brief Start SPI transfer through DMA
  */
 static int32_t spi_dma_transfer(spi_handle_t const hspi, void *const txbuf,
-        void *const rxbuf, uint16_t nbytes)
+        void *const rxbuf, uint32_t nbytes)
 {
     uint32_t blk_cnt;
     dma_burst_len_t burst_len;
@@ -809,7 +816,6 @@ static int32_t spi_dma_transfer(spi_handle_t const hspi, void *const txbuf,
 
     hspi->dma_tx_done = false;
     hspi->dma_rx_done = false;
-    osal_semaphore_reset(hspi->sem);
 
     /*
      * Decide which DMA channels to start.
@@ -861,7 +867,6 @@ static int32_t spi_dma_transfer(spi_handle_t const hspi, void *const txbuf,
                 DMA_XFER_WIDTH1, DMA_XFER_WIDTH1) != 0)
         {
             ERROR("SPI RX DMA setup failed");
-            spi_dma_close_channels((spi_handle_t)hspi);
             spi_ll_disable_dma(hspi->base_addr);
             spi_ll_set_dma_thresholds(hspi->base_addr, 0U, 0U);
             return -EIO;
@@ -875,7 +880,6 @@ static int32_t spi_dma_transfer(spi_handle_t const hspi, void *const txbuf,
                 DMA_XFER_WIDTH4, DMA_XFER_WIDTH4) != 0)
         {
             ERROR("SPI TX DMA setup failed");
-            spi_dma_close_channels((spi_handle_t)hspi);
             spi_ll_disable_dma(hspi->base_addr);
             spi_ll_set_dma_thresholds(hspi->base_addr, 0U, 0U);
             return -EIO;
@@ -923,7 +927,7 @@ static int32_t spi_dma_transfer(spi_handle_t const hspi, void *const txbuf,
 }
 
 int32_t spi_xfer_sync(spi_handle_t const hspi,
-        void *const txbuf, void *const rxbuf, uint16_t nbytes)
+        void *const txbuf, void *const rxbuf, uint32_t nbytes)
 {
     bool ret;
 
@@ -1068,7 +1072,7 @@ int32_t spi_xfer_sync(spi_handle_t const hspi,
 }
 
 int32_t spi_xfer_async(spi_handle_t const hspi,
-        void *const txbuf, void *const rxbuf, uint16_t nbytes)
+        void *const txbuf, void *const rxbuf, uint32_t nbytes)
 {
 
     if ((spi_is_handle_valid(hspi) == false) || (nbytes == 0U)
@@ -1206,9 +1210,157 @@ int32_t spi_select_slave(spi_handle_t const hspi, uint32_t ss)
 
 int32_t spi_cancel(spi_handle_t const hspi)
 {
-    (void)hspi;
-    ERROR("Function not supported");
-    return -ENOSYS;
+    int32_t tx_dma_ret = 0;
+    int32_t rx_dma_ret = 0;
+    bool do_fifo_drain = false;
+
+    if ((spi_is_handle_valid(hspi) == false) || (hspi->is_open == false))
+    {
+        ERROR("Invalid parameter");
+        return -EINVAL;
+    }
+
+    if ((hspi->is_rx_busy == false) && (hspi->is_tx_busy == false))
+    {
+        ERROR("SPI instance is idle");
+        return -EINVAL;
+    }
+
+    if ((hspi->role == SPI_ROLE_SLAVE) &&
+            (hspi->is_rx_on == true) &&
+            (hspi->rx_buf != NULL) &&
+            (hspi->rx_size > 0U) &&
+            (hspi->rx_bytes_left > 0U))
+    {
+        do_fifo_drain = true;
+        spi_drain_fifo(hspi);
+    }
+
+    spi_disable(hspi->base_addr);
+
+    if (hspi->dma_enabled == true)
+    {
+        if (hspi->dma_tx_done == false)
+        {
+            tx_dma_ret = dma_stop_transfer(hspi->h_dma_tx);
+            if (tx_dma_ret == -EIO)
+            {
+                tx_dma_ret = 0;
+            }
+        }
+
+        if (hspi->dma_rx_done == false)
+        {
+            rx_dma_ret = dma_stop_transfer(hspi->h_dma_rx);
+            if (rx_dma_ret == -EIO)
+            {
+                rx_dma_ret = 0;
+            }
+        }
+
+        if ((tx_dma_ret != 0) || (rx_dma_ret != 0))
+        {
+            ERROR("Failed to stop SPI DMA channels");
+            return -EIO;
+        }
+    }
+
+    hspi->is_rx_busy = false;
+    hspi->is_tx_busy = false;
+    hspi->is_rx_async = false;
+    hspi->is_tx_async = false;
+    hspi->tx_bytes_left = 0U;
+    if (!do_fifo_drain)
+    {
+        hspi->rx_bytes_left = 0U;
+    }
+
+    spi_enable(hspi->base_addr);
+
+    return 0;
+}
+
+static void spi_drain_fifo(spi_handle_t hspi)
+{
+    bool use_dma_drain = false;
+    uint64_t dma_dst_addr = 0U;
+    uintptr_t rx_start = 0U;
+    uintptr_t rx_end = 0U;
+    uint32_t dma_done = 0U;
+    uint32_t fifo_done = 0U;
+    uint32_t remaining = 0U;
+
+    if ((hspi->dma_enabled == true) && (hspi->h_dma_rx != NULL))
+    {
+        use_dma_drain = true;
+    }
+
+    if (use_dma_drain)
+    {
+        spi_ll_disable_dma(hspi->base_addr);
+
+        if (dma_get_dst_ptr(hspi->h_dma_rx, &dma_dst_addr) == 0)
+        {
+            rx_start = (uintptr_t)hspi->rx_buf;
+            rx_end = rx_start + (uintptr_t)hspi->rx_size;
+
+            if ((uintptr_t)dma_dst_addr <= rx_start)
+            {
+                dma_done = 0U;
+            }
+            else if ((uintptr_t)dma_dst_addr >= rx_end)
+            {
+                dma_done = hspi->rx_size;
+            }
+            else
+            {
+                dma_done = (uint32_t)((uintptr_t)dma_dst_addr - rx_start);
+            }
+        }
+        else
+        {
+            dma_done = hspi->rx_size - hspi->rx_bytes_left;
+        }
+
+        if (dma_done > hspi->rx_size)
+        {
+            dma_done = hspi->rx_size;
+        }
+
+        remaining = hspi->rx_size - dma_done;
+        if (remaining > 0U)
+        {
+            fifo_done = spi_read_fifo(hspi->base_addr,
+                    &hspi->rx_buf[dma_done], remaining);
+        }
+
+        if ((dma_done + fifo_done) > hspi->rx_size)
+        {
+            hspi->rx_bytes_left = 0U;
+        }
+        else
+        {
+            hspi->rx_bytes_left = hspi->rx_size - (dma_done + fifo_done);
+        }
+
+        spi_ll_enable_dma(hspi->base_addr, true, true);
+    }
+    else
+    {
+        fifo_done = spi_read_fifo(hspi->base_addr,
+                hspi->rx_buf, hspi->rx_bytes_left);
+
+        if (fifo_done >= hspi->rx_bytes_left)
+        {
+            hspi->rx_buf += hspi->rx_bytes_left;
+            hspi->rx_bytes_left = 0U;
+        }
+        else
+        {
+            hspi->rx_buf += fifo_done;
+            hspi->rx_bytes_left -= fifo_done;
+        }
+    }
 }
 
 int32_t spi_close(spi_handle_t const hspi)
@@ -1248,8 +1400,8 @@ void spi_isr(void *param)
 {
     spi_handle_t hspi;
     uint32_t id;
-    uint16_t rx_byte_count;
-    uint16_t tx_byte_count;
+    uint32_t rx_byte_count;
+    uint32_t tx_byte_count;
     uint32_t new_thr;
 
     hspi = (spi_handle_t)param;

@@ -357,6 +357,21 @@ int32_t dma_start_transfer(dma_handle_t const hdma);
  */
 int32_t dma_stop_transfer(dma_handle_t const hdma);
 
+/**
+ * @brief Read current DMA destination address (DAR register) for a channel.
+ *
+ * This API returns the current destination address from the DMA channel.
+ * It can be used to determine how much data is already written by comparing
+ * the returned address against the destination buffer start address.
+ *
+ * @param[in] hdma Handle to the channel returned by dma_open().
+ * @param[out] dst_ptr Pointer to storage for current DAR value.
+ *
+ * @return
+ * - 0:       on success
+ * - -EINVAL: if hdma is NULL or dst_ptr is NULL
+ */
+int32_t dma_get_dst_ptr(dma_handle_t const hdma, uint64_t *dst_ptr);
 
 /**
  * @brief Close the dma channel

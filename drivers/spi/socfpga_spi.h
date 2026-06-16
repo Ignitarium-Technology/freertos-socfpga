@@ -117,8 +117,8 @@ typedef enum
 {
     SPI_SET_CONFIG,     /*!< Configure SPI using spi_cfg_t (input). */
     SPI_GET_CONFIG,     /*!< Read current config into spi_cfg_t (output). */
-    SPI_GET_TX_NBYTES,  /*!< Get last TX byte count (uint16_t*, output). */
-    SPI_GET_RX_NBYTES,  /*!< Get last RX byte count (uint16_t*, output). */
+    SPI_GET_TX_NBYTES,  /*!< Get last TX byte count (uint32_t*, output). */
+    SPI_GET_RX_NBYTES,  /*!< Get last RX byte count (uint32_t*, output). */
     SPI_ENABLE_DMA,     /*!< Enable DMA using spi_dma_config_t (input). */
     SPI_DISABLE_DMA,  /*!< Disable DMA mode; buf is ignored (pass NULL). */
 } spi_ioctl_t;
@@ -271,9 +271,7 @@ int32_t spi_set_callback(spi_handle_t const hspi, spi_callback_t callback,
  * @note SPI_GET_TX_NBYTES: Get the number of bytes written by the last
  * operation. Call this in the caller task (sync) or in the application
  * callback (async), right after the last operation completes.
- * buf points to a uint16_t provided by the caller (driver populates it).
- * The value is limited to 65535 bytes (the maximum transfer size supported by
- * the current API).
+ * buf points to a uint32_t provided by the caller (driver populates it).
  *
  * - If the last operation did not use a TX buffer (txbuf was NULL), this
  *   returns 0.
@@ -282,9 +280,7 @@ int32_t spi_set_callback(spi_handle_t const hspi, spi_callback_t callback,
  * @note SPI_GET_RX_NBYTES: Get the number of bytes read by the last
  * operation. Call this in the caller task (sync) or in the application
  * callback (async), right after the last operation completes.
- * buf points to a uint16_t provided by the caller (driver populates it).
- * The value is limited to 65535 bytes (the maximum transfer size supported by
- * the current API).
+ * buf points to a uint32_t provided by the caller (driver populates it).
  *
  * - If the last operation did not use an RX buffer (rxbuf was NULL), this
  *   returns 0.
@@ -349,7 +345,7 @@ int32_t spi_ioctl(spi_handle_t const hspi, spi_ioctl_t cmd, void *const buf);
  * - -EBUSY:  if the bus is busy which means there is an ongoing operation.
  */
 int32_t spi_xfer_sync(spi_handle_t const hspi, void *const txbuf,
-        void *const rxbuf, uint16_t nbytes);
+        void *const rxbuf, uint32_t nbytes);
 
 /**
  * @brief Perform an asynchronous SPI transfer.
@@ -379,7 +375,7 @@ int32_t spi_xfer_sync(spi_handle_t const hspi, void *const txbuf,
  * - -EBUSY:  if the bus is busy which means there is an ongoing operation.
  */
 int32_t spi_xfer_async(spi_handle_t const hspi, void *const txbuf,
-        void *const rxbuf, uint16_t nbytes);
+        void *const rxbuf, uint32_t nbytes);
 
 /**
  * @brief Closes the SPI instance.
@@ -396,12 +392,22 @@ int32_t spi_xfer_async(spi_handle_t const hspi, void *const txbuf,
 int32_t spi_close(spi_handle_t const hspi);
 
 /**
- * @brief Stops ongoing operation - Cancel is not supported for this driver.
+ * @brief Stops an ongoing SPI transfer.
+ *
+ * In DMA mode this function stops active DMA channels after disabling SPI DMA
+ * requests. In slave DMA RX mode, any bytes already present in SPI RX FIFO are
+ * drained into the user RX buffer so @ref SPI_GET_RX_NBYTES reports the total
+ * received bytes captured by DMA and FIFO drain.
  *
  * @param[in] hspi The SPI peripheral handle returned in open() call.
  *
  * @return
- * - -ENOSYS: always.
+ * - 0:       on success.
+ * - -EINVAL: if
+ *     - hspi is NULL
+ *     - hspi is not opened yet
+ *     - SPI instance is idle
+ * - -EIO:    if an internal stop operation fails.
  */
 int32_t spi_cancel(spi_handle_t const hspi);
 

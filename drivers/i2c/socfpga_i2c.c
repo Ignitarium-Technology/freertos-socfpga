@@ -30,19 +30,16 @@ struct i2c_descriptor
     uint8_t slave_rx_tl;
     uint8_t slave_tx_tl;
     uint8_t slave_tx_default_byte;
-    uint16_t slave_own_address;
-    i2c_slave_write_requested_cb_t  slave_write_requested_cb;
-    i2c_slave_write_received_cb_t   slave_write_received_cb;
-    i2c_slave_read_requested_cb_t   slave_read_requested_cb;
-    i2c_slave_read_processed_cb_t   slave_read_processed_cb;
-    i2c_slave_stop_cb_t             slave_stop_cb;
-    void *slave_cb_usercontext;
+    uint16_t slave_own_addr;
+    i2c_write_requested_cb_t  slave_wr_requested_cb;
+    i2c_write_received_cb_t   slave_wr_received_cb;
+    i2c_read_requested_cb_t   slave_rd_requested_cb;
+    i2c_read_processed_cb_t   slave_rd_processed_cb;
+    i2c_stop_cb_t             slave_stop_cb;
+    void *slave_cb_usr_ctxt;
     bool slave_write_started;
-    uint32_t slave_stop_cnt;
-    uint32_t slave_rx_over_cnt;
-    uint32_t slave_tx_underflow_cnt;
-    uint32_t slave_tx_abrt_cnt;
-    uint16_t slave_address;
+    bool slave_read_in_progress;
+    uint16_t slave_addr;
     size_t bytes_left;
     size_t rd_cmds_left;
     size_t xfer_size;
@@ -64,7 +61,7 @@ struct i2c_descriptor
     bool no_stop_flag;
     bool is_xfer_abort;
     i2c_callback_t callback_fn;
-    void *cb_usercontext;
+    void *cb_usr_ctxt;
     osal_mutex_def_t mutex_mem;
     osal_semaphore_def_t sem_mem;
     osal_mutex_t mutex;
@@ -343,16 +340,17 @@ static void i2c_find_burst_params(uint32_t nbytes,
     }
 }
 
-static void i2c_slave_handle_tx_abort(i2c_handle_t pi2c_peripheral,
-        uint32_t base_addr, uint32_t raw)
+static void i2c_slave_handle_tx_abort(i2c_handle_t pi2c_peripheral)
 {
-    if ((raw & I2C_RAW_INTR_STAT_TX_ABRT_MASK) == 0U)
+    uint32_t base_addr;
+
+    if (pi2c_peripheral == NULL)
     {
         return;
     }
 
-    pi2c_peripheral->slave_tx_abrt_cnt++;
-    i2c_ll_clear_tx_abrt(base_addr);
+    base_addr = pi2c_peripheral->base_addr;
+    pi2c_peripheral->slave_read_in_progress = false;
 
     if ((pi2c_peripheral->is_busy == true) &&
             (pi2c_peripheral->operation == I2C_WRITE))
@@ -361,183 +359,100 @@ static void i2c_slave_handle_tx_abort(i2c_handle_t pi2c_peripheral,
         {
             i2c_ll_tdma_disable(base_addr);
         }
-        i2c_disable_interrupt(base_addr, I2C_RD_REQ_INT);
         pi2c_peripheral->is_busy = false;
+        i2c_ll_clear_tx_abrt(base_addr);
 
         if (pi2c_peripheral->callback_fn != NULL)
         {
             pi2c_peripheral->callback_fn(I2C_OP_FAIL,
-                    pi2c_peripheral->cb_usercontext);
+                    pi2c_peripheral->cb_usr_ctxt);
         }
+        return;
     }
+
+    i2c_ll_clear_tx_abrt(base_addr);
 }
 
-static void i2c_slave_handle_stop_detect(i2c_handle_t pi2c_peripheral,
-        uint32_t base_addr, uint32_t raw)
+static void i2c_slave_handle_stop_detect(i2c_handle_t pi2c_peripheral)
 {
-    bool irq_async_done;
+    uint32_t base_addr;
 
-    if ((raw & I2C_RAW_INTR_STAT_STOP_DET_MASK) == 0U)
+    if (pi2c_peripheral == NULL)
     {
         return;
     }
 
-    pi2c_peripheral->slave_stop_cnt++;
-    i2c_ll_clear_stop_det(base_addr);
+    base_addr = pi2c_peripheral->base_addr;
 
     pi2c_peripheral->slave_write_started = false;
-
-    if (!((pi2c_peripheral->is_busy == true) &&
-          (pi2c_peripheral->operation == I2C_READ) &&
-          (pi2c_peripheral->is_rdma_en == true)))
-    {
-        i2c_drain_rx_fifo(base_addr);
-        i2c_ll_clear_rx_over(base_addr);
-    }
+    pi2c_peripheral->slave_read_in_progress = false;
 
     if (pi2c_peripheral->slave_stop_cb != NULL)
     {
         pi2c_peripheral->slave_stop_cb(pi2c_peripheral,
-                pi2c_peripheral->slave_cb_usercontext);
+                pi2c_peripheral->slave_cb_usr_ctxt);
     }
 
-    irq_async_done = (pi2c_peripheral->is_busy == true) &&
-                          (pi2c_peripheral->is_async == true) &&
-                          (pi2c_peripheral->is_rdma_en == false) &&
-                          (pi2c_peripheral->is_wdma_en == false);
-    if (irq_async_done)
-    {
-        pi2c_peripheral->is_busy = false;
-
-        /*
-         * Keep RD_REQ_INT and STOP_DET_INT enabled so that the byte-
-         * callback model (read_requested_cb, stop_cb) continues to
-         * work for subsequent master transactions after an IRQ-async
-         * RX or TX completes.  Disabling them here would prevent the
-         * slave from responding to master reads via the callback path.
-         */
-        if (pi2c_peripheral->callback_fn != NULL)
-        {
-            pi2c_peripheral->callback_fn(I2C_SUCCESS,
-                    pi2c_peripheral->cb_usercontext);
-        }
-    }
+    i2c_ll_clear_stop_det(base_addr);
 }
 
-static void i2c_slave_handle_read_request(i2c_handle_t pi2c_peripheral,
-        uint32_t base_addr)
+static void i2c_slave_handle_read_request(i2c_handle_t pi2c_peripheral)
 {
+    uint32_t base_addr;
     uint8_t byte;
-    bool slave_activity;
     bool dma_pre_armed;
-    bool irq_tx_armed;
-    size_t pos;
-    uint16_t nwr;
-    uint32_t raw;
-    uint8_t default_byte;
 
-    raw = i2c_ll_get_raw_interrupt_status(base_addr);
-    if ((raw & I2C_RAW_INTR_STAT_RD_REQ_MASK) == 0U)
+    if (pi2c_peripheral == NULL)
     {
         return;
     }
 
-    /*
-     * Guard RD_REQ handling with bus activity check
-     */
-    slave_activity =
-            (i2c_read_status(base_addr) & I2C_STATUS_IC_STATUS_ACTIVITY_MASK) != 0U;
+    base_addr = pi2c_peripheral->base_addr;
 
-    /* Check if slave TX DMA was pre-armed by i2c_write_async(). */
     dma_pre_armed = (pi2c_peripheral->is_busy == true) &&
                          (pi2c_peripheral->is_wdma_en == true) &&
                          (pi2c_peripheral->operation == I2C_WRITE);
-    irq_tx_armed = (pi2c_peripheral->is_busy == true) &&
-                        (pi2c_peripheral->is_async == true) &&
-                        (pi2c_peripheral->is_wdma_en == false) &&
-                        (pi2c_peripheral->operation == I2C_WRITE);
 
     if (dma_pre_armed)
     {
-        /*
-         * Master has addressed us for reading. TX FIFO is empty here
-         * (DMA was not started in i2c_write_async to avoid
-         * ABRT_SLVFLUSH_TXFIFO). Clear RD_REQ before starting DMA
-         * so the controller can accept new read requests.
-         */
         i2c_disable_interrupt(base_addr, I2C_RD_REQ_INT);
-        i2c_ll_clear_rd_req(base_addr);
         if (dma_start_transfer(pi2c_peripheral->wdma_handle) != 0)
         {
             pi2c_peripheral->is_busy = false;
             i2c_enable_interrupt(base_addr, I2C_RD_REQ_INT);
+            i2c_ll_clear_rd_req(base_addr);
             if (pi2c_peripheral->callback_fn != NULL)
             {
                 pi2c_peripheral->callback_fn(I2C_OP_FAIL,
-                        pi2c_peripheral->cb_usercontext);
+                        pi2c_peripheral->cb_usr_ctxt);
             }
             return;
         }
         i2c_ll_tdma_enable(base_addr);
     }
-    else if (irq_tx_armed && slave_activity)
-    {
-        /*
-         * Clear RD_REQ before writing to TX FIFO (DW databook
-         * requires clearing IC_CLR_RD_REQ before responding).
-         */
-        i2c_ll_clear_rd_req(base_addr);
-
-        /* Feed TX FIFO from the pre-armed buffer. */
-        while (pi2c_peripheral->bytes_left > 0U)
-        {
-            pos = pi2c_peripheral->xfer_size - pi2c_peripheral->bytes_left;
-            nwr = i2c_write_fifo(base_addr, &pi2c_peripheral->buffer[pos],
-                    (uint32_t)pi2c_peripheral->bytes_left, true);
-            if (nwr == 0U)
-            {
-                break;
-            }
-            pi2c_peripheral->bytes_left -= nwr;
-        }
-
-        if (pi2c_peripheral->bytes_left == 0U)
-        {
-            default_byte = pi2c_peripheral->slave_tx_default_byte;
-            if (i2c_write_fifo(base_addr, &default_byte, 1U, true) == 1U)
-            {
-                pi2c_peripheral->slave_tx_underflow_cnt++;
-            }
-        }
-    }
-    else if (slave_activity)
-    {
-        /*
-         * Byte-oriented callback mode: one byte per RD_REQ.
-         * Clear RD_REQ before writing the byte
-         */
-        byte = pi2c_peripheral->slave_tx_default_byte;
-
-        i2c_ll_clear_rd_req(base_addr);
-
-        if (pi2c_peripheral->slave_read_requested_cb != NULL)
-        {
-            pi2c_peripheral->slave_read_requested_cb(pi2c_peripheral,
-                    &byte, pi2c_peripheral->slave_cb_usercontext);
-        }
-        (void)i2c_write_fifo(base_addr, &byte, 1U, true);
-
-        if (pi2c_peripheral->slave_read_processed_cb != NULL)
-        {
-            pi2c_peripheral->slave_read_processed_cb(pi2c_peripheral,
-                    &byte, pi2c_peripheral->slave_cb_usercontext);
-        }
-    }
     else
     {
-        /* Bus no longer active; discard stale RD_REQ. */
-        i2c_ll_clear_rd_req(base_addr);
+        byte = pi2c_peripheral->slave_tx_default_byte;
+
+        if (pi2c_peripheral->slave_read_in_progress == false)
+        {
+            if (pi2c_peripheral->slave_rd_requested_cb != NULL)
+            {
+                pi2c_peripheral->slave_rd_requested_cb(pi2c_peripheral,
+                        &byte, pi2c_peripheral->slave_cb_usr_ctxt);
+            }
+            pi2c_peripheral->slave_read_in_progress = true;
+        }
+        else if (pi2c_peripheral->slave_rd_processed_cb != NULL)
+        {
+            pi2c_peripheral->slave_rd_processed_cb(pi2c_peripheral,
+                    &byte, pi2c_peripheral->slave_cb_usr_ctxt);
+        }
+
+        i2c_write_fifo(base_addr, &byte, 1U, true);
     }
+
+    i2c_ll_clear_rd_req(base_addr);
 }
 
 i2c_handle_t i2c_open(uint32_t instance)
@@ -660,16 +575,17 @@ int32_t i2c_close(i2c_handle_t const hi2c)
         i2c_disable_interrupt(hi2c->base_addr, I2C_STOP_DET_INT);
 
         hi2c->callback_fn = NULL;
-        hi2c->cb_usercontext = NULL;
-        hi2c->slave_write_requested_cb = NULL;
-        hi2c->slave_write_received_cb = NULL;
-        hi2c->slave_read_requested_cb = NULL;
-        hi2c->slave_read_processed_cb = NULL;
+        hi2c->cb_usr_ctxt = NULL;
+        hi2c->slave_wr_requested_cb = NULL;
+        hi2c->slave_wr_received_cb = NULL;
+        hi2c->slave_rd_requested_cb = NULL;
+        hi2c->slave_rd_processed_cb = NULL;
         hi2c->slave_stop_cb = NULL;
-        hi2c->slave_cb_usercontext = NULL;
+        hi2c->slave_cb_usr_ctxt = NULL;
 
         i2c_delete_osal_primitives(hi2c);
         hi2c->is_open = false;
+        i2c_deinit(hi2c->base_addr);
     }
 
     return 0;
@@ -684,7 +600,7 @@ void i2c_set_callback(i2c_handle_t const hi2c, i2c_callback_t callback, void *pa
     }
 
     hi2c->callback_fn = callback;
-    hi2c->cb_usercontext = param;
+    hi2c->cb_usr_ctxt = param;
 }
 
 /*
@@ -712,7 +628,7 @@ static int32_t i2c_slave_init(i2c_handle_t const hi2c, const i2c_slave_config_t 
         return -EBUSY;
     }
 
-    if (osal_mutex_lock(hi2c->mutex, 0xFFFFFFFFU))
+    if (osal_mutex_lock(hi2c->mutex, OSAL_TIMEOUT_WAIT_FOREVER))
     {
         if (hi2c->is_busy == true)
         {
@@ -725,26 +641,21 @@ static int32_t i2c_slave_init(i2c_handle_t const hi2c, const i2c_slave_config_t 
     hi2c->role = I2C_ROLE_SLAVE;
 
     /* Store slave configuration */
-    hi2c->slave_own_address = cfg->slave_address;
+    hi2c->slave_own_addr = cfg->slave_addr;
     hi2c->slave_is_10bit_addr = cfg->is_10bit_addr;
     hi2c->slave_stop_det_ifaddressed = cfg->stop_det_ifaddressed;
     hi2c->slave_ack_general_call = cfg->ack_general_call;
     hi2c->slave_rx_tl = cfg->rx_tl;
     hi2c->slave_tx_tl = cfg->tx_tl;
     hi2c->slave_tx_default_byte = cfg->tx_default_byte;
-    hi2c->slave_write_requested_cb = cfg->write_requested_cb;
-    hi2c->slave_write_received_cb = cfg->write_received_cb;
-    hi2c->slave_read_requested_cb = cfg->read_requested_cb;
-    hi2c->slave_read_processed_cb = cfg->read_processed_cb;
+    hi2c->slave_wr_requested_cb = cfg->wr_requsted_cb;
+    hi2c->slave_wr_received_cb = cfg->wr_received_cb;
+    hi2c->slave_rd_requested_cb = cfg->rd_requested_cb;
+    hi2c->slave_rd_processed_cb = cfg->rd_processed_cb;
     hi2c->slave_stop_cb = cfg->stop_cb;
-    hi2c->slave_cb_usercontext = cfg->cb_usercontext;
+    hi2c->slave_cb_usr_ctxt = cfg->cb_usr_ctxt;
     hi2c->slave_write_started = false;
-
-    /* Reset stats */
-    hi2c->slave_stop_cnt = 0U;
-    hi2c->slave_rx_over_cnt = 0U;
-    hi2c->slave_tx_underflow_cnt = 0U;
-    hi2c->slave_tx_abrt_cnt = 0U;
+    hi2c->slave_read_in_progress = false;
 
     i2c_ll_tdma_disable(hi2c->base_addr);
     i2c_ll_rdma_disable(hi2c->base_addr);
@@ -756,7 +667,7 @@ static int32_t i2c_slave_init(i2c_handle_t const hi2c, const i2c_slave_config_t 
     i2c_ll_set_interrupt_mask(hi2c->base_addr, 0U);
 
     i2c_ll_config_slave(hi2c->base_addr,
-            hi2c->slave_own_address,
+            hi2c->slave_own_addr,
             hi2c->slave_is_10bit_addr,
             hi2c->slave_stop_det_ifaddressed,
             hi2c->slave_ack_general_call,
@@ -812,6 +723,7 @@ int32_t i2c_ioctl(i2c_handle_t const hi2c, i2c_ioctl_t cmd, void *const pparam)
     i2c_dma_config_t *pconfig;
     int32_t ret = 0;
     uint16_t bytes_left;
+    uint16_t addr;
 
     if ((hi2c == NULL) || (hi2c->is_open == false))
     {
@@ -839,8 +751,22 @@ int32_t i2c_ioctl(i2c_handle_t const hi2c, i2c_ioctl_t cmd, void *const pparam)
                 ERROR("Buffer cannot be null");
                 return -EINVAL;
             }
-            hi2c->slave_address = *((uint16_t *)pparam);
-            i2c_set_target_addr(hi2c->base_addr, hi2c->slave_address);
+
+            /*
+             * pparam may not be naturally aligned for uint16_t access.
+             * Read it via memcpy into local 'addr' to avoid unaligned
+             * dereference on architectures that fault/trap on unaligned loads.
+             */
+            {
+                (void)memcpy(&addr, pparam, sizeof(addr));
+                if (((uint32_t)addr & ~I2C_TAR_IC_TAR_MASK) != 0U)
+                {
+                    ERROR("Invalid I2C target address");
+                    return -EINVAL;
+                }
+                hi2c->slave_addr = addr;
+            }
+            i2c_set_target_addr(hi2c->base_addr, hi2c->slave_addr);
             break;
 
         case I2C_SET_MASTER_CFG:
@@ -1224,7 +1150,7 @@ int32_t i2c_write_sync(i2c_handle_t const hi2c, void *const buf, size_t nbytes)
         return -EPERM;
     }
 
-    if (hi2c->slave_address == 0U)
+    if (hi2c->slave_addr == 0U)
     {
         ERROR("Slave address not set");
         return -ENXIO;
@@ -1261,7 +1187,7 @@ int32_t i2c_write_sync(i2c_handle_t const hi2c, void *const buf, size_t nbytes)
     }
 
     hi2c->operation = I2C_WRITE;
-
+    hi2c->is_xfer_abort = false;
     hi2c->is_async = false;
     hi2c->xfer_size = nbytes;
     use_dma = hi2c->is_wdma_en;
@@ -1317,7 +1243,15 @@ int32_t i2c_write_async(i2c_handle_t const hi2c, void *const buf, size_t nbytes)
         return -EINVAL;
     }
 
-    if ((hi2c->role == I2C_ROLE_MASTER) && (hi2c->slave_address == 0U))
+    /* Slave mode supports async transfers only with DMA enabled. */
+    if ((hi2c->role == I2C_ROLE_SLAVE) &&
+            !((hi2c->is_dma_open == true) && (hi2c->is_wdma_en == true)))
+    {
+        ERROR("Slave interrupt mode does not support i2c_write_async");
+        return -ENOTSUP;
+    }
+
+    if ((hi2c->role == I2C_ROLE_MASTER) && (hi2c->slave_addr == 0U))
     {
         ERROR("Slave address not set");
         return -ENXIO;
@@ -1363,59 +1297,50 @@ int32_t i2c_write_async(i2c_handle_t const hi2c, void *const buf, size_t nbytes)
     }
 
     hi2c->operation = I2C_WRITE;
+    hi2c->is_xfer_abort = false;
     hi2c->is_async = true;
     hi2c->xfer_size = nbytes;
 
     if (hi2c->role == I2C_ROLE_SLAVE)
     {
-        if (hi2c->is_dma_open && hi2c->is_wdma_en)
+        wbuf32 = (uint32_t *)buf;
+
+        blk_cnt_sz = (nbytes + I2C_DMA_XFER_BLK_SIZE - 1U) / I2C_DMA_XFER_BLK_SIZE;
+        if ((blk_cnt_sz == 0U) || (blk_cnt_sz > MAX_I2C_BLK_XFERS))
         {
-            wbuf32 = (uint32_t *)buf;
+            hi2c->is_busy = false;
+            return -EINVAL;
+        }
+        blk_cnt = (uint32_t)blk_cnt_sz;
+        hi2c->bytes_left = 0U;
 
-            blk_cnt_sz = (nbytes + I2C_DMA_XFER_BLK_SIZE - 1U) / I2C_DMA_XFER_BLK_SIZE;
-            if ((blk_cnt_sz == 0U) || (blk_cnt_sz > MAX_I2C_BLK_XFERS))
+        {
+            burst_items = (uint32_t)(nbytes % I2C_DMA_XFER_BLK_SIZE);
+
+            if (burst_items == 0U)
             {
-                hi2c->is_busy = false;
-                return -EINVAL;
+                burst_items = (nbytes >= I2C_DMA_XFER_BLK_SIZE) ?
+                        I2C_DMA_XFER_BLK_SIZE : (uint32_t)nbytes;
             }
-            blk_cnt = (uint32_t)blk_cnt_sz;
-            hi2c->bytes_left = 0U;
-
-            {
-                burst_items = (uint32_t)(nbytes % I2C_DMA_XFER_BLK_SIZE);
-
-                if (burst_items == 0U)
-                {
-                    burst_items = (nbytes >= I2C_DMA_XFER_BLK_SIZE) ?
-                            I2C_DMA_XFER_BLK_SIZE : (uint32_t)nbytes;
-                }
-                i2c_find_burst_params(burst_items, &burst_len, &burst);
-            }
-
-            if (i2c_dma_setup_wdma(hi2c, wbuf32, nbytes, blk_cnt, burst_len) != 0)
-            {
-                hi2c->is_busy = false;
-                ERROR("Slave TX DMA setup failed");
-                return -EIO;
-            }
-
-            (void)cache_force_write_back((void *)wbuf32, nbytes * 4U);
-            (void)i2c_ll_set_tdlr(hi2c->base_addr, burst);
-
-            /*
-             * Do NOT start DMA or enable TDMAE here. The DW I2C controller will
-             * issue ABRT_SLVFLUSH_TXFIFO if the TX FIFO has data when the master
-             * sends its READ address. DMA must start AFTER the RD_REQ event.
-             * The RD_REQ ISR handler starts DMA when the master addresses us.
-             */
-            i2c_enable_interrupt(hi2c->base_addr, I2C_RD_REQ_INT);
-            i2c_enable_interrupt(hi2c->base_addr, I2C_TX_ABORT_INT);
-            return 0;
+            i2c_find_burst_params(burst_items, &burst_len, &burst);
         }
 
-        /* IRQ fallback: arm buffer; ISR feeds TX FIFO from it on RD_REQ. */
-        hi2c->buffer = (uint8_t *)buf;
-        hi2c->bytes_left = nbytes;
+        if (i2c_dma_setup_wdma(hi2c, wbuf32, nbytes, blk_cnt, burst_len) != 0)
+        {
+            hi2c->is_busy = false;
+            ERROR("Slave TX DMA setup failed");
+            return -EIO;
+        }
+
+        (void)cache_force_write_back((void *)wbuf32, nbytes * 4U);
+        (void)i2c_ll_set_tdlr(hi2c->base_addr, burst);
+
+        /*
+         * Do NOT start DMA or enable TDMAE here. The DW I2C controller will
+         * issue ABRT_SLVFLUSH_TXFIFO if the TX FIFO has data when the master
+         * sends its READ address. DMA must start AFTER the RD_REQ event.
+         * The RD_REQ ISR handler starts DMA when the master addresses us.
+         */
         i2c_enable_interrupt(hi2c->base_addr, I2C_RD_REQ_INT);
         i2c_enable_interrupt(hi2c->base_addr, I2C_TX_ABORT_INT);
         return 0;
@@ -1458,7 +1383,7 @@ int32_t i2c_read_sync(i2c_handle_t const hi2c, void *const buf, size_t nbytes)
         return -EPERM;
     }
 
-    if (hi2c->slave_address == 0U)
+    if (hi2c->slave_addr == 0U)
     {
         ERROR("Slave address not set");
         return -ENXIO;
@@ -1499,6 +1424,7 @@ int32_t i2c_read_sync(i2c_handle_t const hi2c, void *const buf, size_t nbytes)
     hi2c->operation = I2C_READ;
 
     hi2c->is_async = false;
+    hi2c->is_xfer_abort = false;
     hi2c->xfer_size = nbytes;
     hi2c->buffer = rbuf;
     use_dma = hi2c->is_rdma_en;
@@ -1554,7 +1480,15 @@ int32_t i2c_read_async(i2c_handle_t const hi2c, void *const buf, size_t nbytes)
         return -EINVAL;
     }
 
-    if ((hi2c->role == I2C_ROLE_MASTER) && (hi2c->slave_address == 0U))
+    /* Slave mode supports async transfers only with DMA enabled. */
+    if ((hi2c->role == I2C_ROLE_SLAVE) &&
+            !((hi2c->is_dma_open == true) && (hi2c->is_rdma_en == true)))
+    {
+        ERROR("Slave interrupt mode does not support i2c_read_async");
+        return -ENOTSUP;
+    }
+
+    if ((hi2c->role == I2C_ROLE_MASTER) && (hi2c->slave_addr == 0U))
     {
         ERROR("Slave address not set");
         return -ENXIO;
@@ -1600,79 +1534,70 @@ int32_t i2c_read_async(i2c_handle_t const hi2c, void *const buf, size_t nbytes)
     }
 
     hi2c->operation = I2C_READ;
+    hi2c->is_xfer_abort = false;
     hi2c->is_async = true;
     hi2c->xfer_size = nbytes;
     hi2c->buffer = rbuf;
 
     if (hi2c->role == I2C_ROLE_SLAVE)
     {
-        if (hi2c->is_dma_open && hi2c->is_rdma_en)
+        idle_wait = 10000U;
+        while (((i2c_read_status(hi2c->base_addr) &
+                I2C_STATUS_IC_STATUS_ACTIVITY_MASK) != 0U) &&
+                (idle_wait > 0U))
         {
-            idle_wait = 10000U;
-            while (((i2c_read_status(hi2c->base_addr) &
-                            I2C_STATUS_IC_STATUS_ACTIVITY_MASK) != 0U) &&
-                    (idle_wait > 0U))
-            {
-                idle_wait--;
-            }
-            if ((i2c_read_status(hi2c->base_addr) &
-                        I2C_STATUS_IC_STATUS_ACTIVITY_MASK) != 0U)
-            {
-                hi2c->is_busy = false;
-                return -EBUSY;
-            }
-
-            i2c_drain_rx_fifo(hi2c->base_addr);
-            i2c_ll_clear_rx_over(hi2c->base_addr);
-
-            blk_cnt_sz = (nbytes + I2C_DMA_XFER_BLK_SIZE - 1U) / I2C_DMA_XFER_BLK_SIZE;
-            if ((blk_cnt_sz == 0U) || (blk_cnt_sz > MAX_I2C_BLK_XFERS))
-            {
-                hi2c->is_busy = false;
-                return -EINVAL;
-            }
-            blk_cnt = (uint32_t)blk_cnt_sz;
-            hi2c->bytes_left = 0U;
-
-            {
-                burst_items = (uint32_t)(nbytes % I2C_DMA_XFER_BLK_SIZE);
-
-                if (burst_items == 0U)
-                {
-                    burst_items = (nbytes >= I2C_DMA_XFER_BLK_SIZE) ?
-                            I2C_DMA_XFER_BLK_SIZE : (uint32_t)nbytes;
-                }
-                i2c_find_burst_params(burst_items, &burst_len, &burst);
-            }
-
-            if (i2c_dma_setup_rdma(hi2c, rbuf, nbytes, blk_cnt, burst_len) != 0)
-            {
-                hi2c->is_busy = false;
-                ERROR("Slave RX DMA setup failed");
-                return -EIO;
-            }
-
-            (void)cache_force_invalidate((void *)rbuf, nbytes);
-            (void)i2c_ll_set_rdlr(hi2c->base_addr, burst);
-            i2c_disable_interrupt(hi2c->base_addr, I2C_RX_FULL_INT);
-
-            if (dma_start_transfer(hi2c->rdma_handle) != 0)
-            {
-                hi2c->is_busy = false;
-                i2c_enable_interrupt(hi2c->base_addr, I2C_RX_FULL_INT);
-                ERROR("Slave RX DMA start failed");
-                return -EIO;
-            }
-
-            i2c_ll_rdma_enable(hi2c->base_addr);
-            i2c_enable_interrupt(hi2c->base_addr, I2C_TX_ABORT_INT);
-            return 0;
+            idle_wait--;
+        }
+        if ((i2c_read_status(hi2c->base_addr) &
+                I2C_STATUS_IC_STATUS_ACTIVITY_MASK) != 0U)
+        {
+            hi2c->is_busy = false;
+            return -EBUSY;
         }
 
-        /* IRQ fallback: arm buffer; ISR copies RX FIFO data into it. */
-        hi2c->bytes_left = nbytes;
-        i2c_enable_interrupt(hi2c->base_addr, I2C_RX_FULL_INT);
-        i2c_enable_interrupt(hi2c->base_addr, I2C_STOP_DET_INT);
+        i2c_drain_rx_fifo(hi2c->base_addr);
+        i2c_ll_clear_rx_over(hi2c->base_addr);
+
+        blk_cnt_sz = (nbytes + I2C_DMA_XFER_BLK_SIZE - 1U) / I2C_DMA_XFER_BLK_SIZE;
+        if ((blk_cnt_sz == 0U) || (blk_cnt_sz > MAX_I2C_BLK_XFERS))
+        {
+            hi2c->is_busy = false;
+            return -EINVAL;
+        }
+        blk_cnt = (uint32_t)blk_cnt_sz;
+        hi2c->bytes_left = 0U;
+
+        {
+            burst_items = (uint32_t)(nbytes % I2C_DMA_XFER_BLK_SIZE);
+
+            if (burst_items == 0U)
+            {
+                burst_items = (nbytes >= I2C_DMA_XFER_BLK_SIZE) ?
+                        I2C_DMA_XFER_BLK_SIZE : (uint32_t)nbytes;
+            }
+            i2c_find_burst_params(burst_items, &burst_len, &burst);
+        }
+
+        if (i2c_dma_setup_rdma(hi2c, rbuf, nbytes, blk_cnt, burst_len) != 0)
+        {
+            hi2c->is_busy = false;
+            ERROR("Slave RX DMA setup failed");
+            return -EIO;
+        }
+
+        (void)cache_force_invalidate((void *)rbuf, nbytes);
+        (void)i2c_ll_set_rdlr(hi2c->base_addr, burst);
+        i2c_disable_interrupt(hi2c->base_addr, I2C_RX_FULL_INT);
+
+        if (dma_start_transfer(hi2c->rdma_handle) != 0)
+        {
+            hi2c->is_busy = false;
+            i2c_enable_interrupt(hi2c->base_addr, I2C_RX_FULL_INT);
+            ERROR("Slave RX DMA start failed");
+            return -EIO;
+        }
+
+        i2c_ll_rdma_enable(hi2c->base_addr);
         i2c_enable_interrupt(hi2c->base_addr, I2C_TX_ABORT_INT);
         return 0;
     }
@@ -1699,6 +1624,9 @@ int32_t i2c_read_async(i2c_handle_t const hi2c, void *const buf, size_t nbytes)
 
 int32_t i2c_cancel(i2c_handle_t const hi2c)
 {
+    int32_t wdma_ret = 0;
+    int32_t rdma_ret = 0;
+
     if ((hi2c == NULL) || (hi2c->is_open == false))
     {
         ERROR("Invalid parameters");
@@ -1709,10 +1637,29 @@ int32_t i2c_cancel(i2c_handle_t const hi2c)
     {
         return -EPERM;
     }
+
     if (hi2c->is_busy == false)
     {
         ERROR("I2C instance is not busy");
         return -EPERM;
+    }
+
+    if (hi2c->is_dma_open == true)
+    {
+        if (hi2c->operation == I2C_WRITE)
+        {
+            wdma_ret = dma_stop_transfer(hi2c->wdma_handle);
+        }
+        else if (hi2c->operation == I2C_READ)
+        {
+            wdma_ret = dma_stop_transfer(hi2c->wdma_handle);
+            rdma_ret = dma_stop_transfer(hi2c->rdma_handle);
+        }
+
+        if (wdma_ret != 0 || rdma_ret != 0)
+        {
+            ERROR("Failed to close I2C dma channels");
+        }
     }
     i2c_ll_cancel(hi2c->base_addr);
     hi2c->is_xfer_abort = false;
@@ -1727,12 +1674,10 @@ void i2c_isr(void *data)
     uint16_t nbytes;
     uint32_t base_addr;
     bool no_stop_flag;
-    bool irq_rx_armed;
     bool dma_rx_active;
+    bool rdma_enabled;
     uint32_t status;
     uint32_t raw;
-    size_t rx_len;
-    size_t pos;
 
     i2c_handle_t pi2c_peripheral = (i2c_handle_t)data;
     if (pi2c_peripheral == NULL)
@@ -1745,74 +1690,64 @@ void i2c_isr(void *data)
         base_addr = pi2c_peripheral->base_addr;
         raw = i2c_ll_get_raw_interrupt_status(base_addr);
 
-        i2c_slave_handle_tx_abort(pi2c_peripheral, base_addr, raw);
-
-        if ((raw & I2C_RAW_INTR_STAT_RX_OVER_MASK) != 0U)
-        {
-            pi2c_peripheral->slave_rx_over_cnt++;
-            i2c_ll_clear_rx_over(base_addr);
-        }
-
-        /*
-         * Process STOP_DET before RX_FULL/RD_REQ, match
-         */
-        raw = i2c_ll_get_raw_interrupt_status(base_addr);
-        i2c_slave_handle_stop_detect(pi2c_peripheral, base_addr, raw);
-
-        rx_len = 0U;
         dma_rx_active = (pi2c_peripheral->is_busy == true) &&
                             (pi2c_peripheral->operation == I2C_READ) &&
                             (pi2c_peripheral->is_rdma_en == true);
-        irq_rx_armed = (pi2c_peripheral->is_busy == true) &&
-                            (pi2c_peripheral->is_async == true) &&
-                            (pi2c_peripheral->operation == I2C_READ) &&
-                            (pi2c_peripheral->is_rdma_en == false);
+        rdma_enabled = (pi2c_peripheral->is_rdma_en == true);
 
-        if (dma_rx_active)
+        if ((raw & I2C_RAW_INTR_STAT_TX_ABRT_MASK) != 0U)
         {
-            i2c_slave_handle_read_request(pi2c_peripheral, base_addr);
-            return;
+            i2c_slave_handle_tx_abort(pi2c_peripheral);
         }
 
-        while (i2c_read_fifo(base_addr, &byte, 1U) == 1U)
+        if ((raw & I2C_RAW_INTR_STAT_RX_OVER_MASK) != 0U)
         {
+            i2c_drain_rx_fifo(base_addr);
+            i2c_ll_clear_rx_over(base_addr);
+        }
 
-            if (irq_rx_armed && (pi2c_peripheral->bytes_left > 0U))
+        if ((raw & I2C_RAW_INTR_STAT_RD_REQ_MASK) != 0U)
+        {
+            i2c_slave_handle_read_request(pi2c_peripheral);
+        }
+
+        if ((raw & I2C_RAW_INTR_STAT_RX_FULL_MASK) != 0U)
+        {
+            if (rdma_enabled && !dma_rx_active)
             {
-                pos = pi2c_peripheral->xfer_size - pi2c_peripheral->bytes_left;
-                pi2c_peripheral->buffer[pos] = byte;
-                pi2c_peripheral->bytes_left--;
+                (void)i2c_read_fifo(base_addr, &byte, 1U);
             }
-            else if (pi2c_peripheral->is_rdma_en)
+            else if (!dma_rx_active)
             {
-                /* RDMA enabled but no RX transfer armed: discard bytes. */
-            }
-            else
-            {
-                /* Byte-oriented callback mode */
-                if (!pi2c_peripheral->slave_write_started)
+                if (i2c_read_fifo(base_addr, &byte, 1U) == 1U)
                 {
-                    pi2c_peripheral->slave_write_started = true;
-                    if (pi2c_peripheral->slave_write_requested_cb != NULL)
+                    if (!pi2c_peripheral->slave_write_started)
                     {
-                        pi2c_peripheral->slave_write_requested_cb(pi2c_peripheral,
-                                pi2c_peripheral->slave_cb_usercontext);
+                        pi2c_peripheral->slave_write_started = true;
+                        if (pi2c_peripheral->slave_wr_requested_cb != NULL)
+                        {
+                            pi2c_peripheral->slave_wr_requested_cb(
+                                    pi2c_peripheral,
+                                    pi2c_peripheral->slave_cb_usr_ctxt);
+                        }
+                    }
+
+                    if (pi2c_peripheral->slave_wr_received_cb != NULL)
+                    {
+                        pi2c_peripheral->slave_wr_received_cb(
+                                pi2c_peripheral,
+                                byte,
+                                pi2c_peripheral->slave_cb_usr_ctxt);
                     }
                 }
-
-                if (pi2c_peripheral->slave_write_received_cb != NULL)
-                {
-                    pi2c_peripheral->slave_write_received_cb(pi2c_peripheral,
-                            byte,
-                            pi2c_peripheral->slave_cb_usercontext);
-                }
             }
-            rx_len++;
         }
 
-        (void)rx_len;
+        if ((raw & I2C_RAW_INTR_STAT_STOP_DET_MASK) != 0U)
+        {
+            i2c_slave_handle_stop_detect(pi2c_peripheral);
+        }
 
-        i2c_slave_handle_read_request(pi2c_peripheral, base_addr);
         return;
     }
 
@@ -1832,7 +1767,7 @@ void i2c_isr(void *data)
             pi2c_peripheral->is_xfer_abort = true;
             if ((pi2c_peripheral->is_async) == true)
             {
-                pi2c_peripheral->callback_fn(I2C_NACK, pi2c_peripheral->cb_usercontext);
+                pi2c_peripheral->callback_fn(I2C_NACK, pi2c_peripheral->cb_usr_ctxt);
             }
             else
             {
@@ -1845,7 +1780,6 @@ void i2c_isr(void *data)
             {
                 if (pi2c_peripheral->operation == I2C_READ)
                 {
-                    /* Master READ: TX_EMPTY means FIFO has room for more READ commands. */
                     if (pi2c_peripheral->rd_cmds_left > 0U)
                     {
                         pi2c_peripheral->rd_cmds_left -= i2c_enq_read_cmd(base_addr,
@@ -1858,7 +1792,6 @@ void i2c_isr(void *data)
                 }
                 else
                 {
-                    /* Master WRITE: TX_EMPTY means FIFO has room for more data bytes. */
                     if (pi2c_peripheral->bytes_left > 0U)
                     {
                         nbytes = i2c_write_fifo(base_addr, pi2c_peripheral->buffer,
@@ -1873,7 +1806,7 @@ void i2c_isr(void *data)
                         {
                             pi2c_peripheral->is_busy = false;
                             pi2c_peripheral->no_stop_flag = false;
-                            pi2c_peripheral->callback_fn(I2C_SUCCESS, pi2c_peripheral->cb_usercontext);
+                            pi2c_peripheral->callback_fn(I2C_SUCCESS, pi2c_peripheral->cb_usr_ctxt);
                         }
                         else
                         {
@@ -1912,7 +1845,7 @@ void i2c_isr(void *data)
                     {
                         pi2c_peripheral->is_busy = false;
                         pi2c_peripheral->no_stop_flag = false;
-                        pi2c_peripheral->callback_fn(I2C_SUCCESS, pi2c_peripheral->cb_usercontext);
+                        pi2c_peripheral->callback_fn(I2C_SUCCESS, pi2c_peripheral->cb_usr_ctxt);
                     }
                     else
                     {
@@ -1946,11 +1879,11 @@ static void i2c_wdma_callback(void *data)
             pi2c_peripheral->no_stop_flag = false;
             if (pi2c_peripheral->is_xfer_abort == true)
             {
-                pi2c_peripheral->callback_fn(I2C_NACK, pi2c_peripheral->cb_usercontext);
+                pi2c_peripheral->callback_fn(I2C_NACK, pi2c_peripheral->cb_usr_ctxt);
             }
             else
             {
-                pi2c_peripheral->callback_fn(I2C_SUCCESS, pi2c_peripheral->cb_usercontext);
+                pi2c_peripheral->callback_fn(I2C_SUCCESS, pi2c_peripheral->cb_usr_ctxt);
             }
         }
         else
@@ -1983,11 +1916,11 @@ static void i2c_rdma_callback(void *data)
             pi2c_peripheral->no_stop_flag = false;
             if (pi2c_peripheral->is_xfer_abort == true)
             {
-                pi2c_peripheral->callback_fn(I2C_NACK, pi2c_peripheral->cb_usercontext);
+                pi2c_peripheral->callback_fn(I2C_NACK, pi2c_peripheral->cb_usr_ctxt);
             }
             else
             {
-                pi2c_peripheral->callback_fn(I2C_SUCCESS, pi2c_peripheral->cb_usercontext);
+                pi2c_peripheral->callback_fn(I2C_SUCCESS, pi2c_peripheral->cb_usr_ctxt);
             }
         }
         else
