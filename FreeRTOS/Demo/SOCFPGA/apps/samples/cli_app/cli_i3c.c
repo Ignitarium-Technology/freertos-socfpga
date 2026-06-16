@@ -107,9 +107,10 @@ uint8_t i3c_rdbuf[100] = {0};
 uint8_t xfer_data[100] = {0};
 struct i3c_xfer_request xfer_cmd[2] = {0};
 int num_dev = 0;
-int initialized = 0;
+static i3c_handle_t i3c_handles[I3C_NUM_INSTANCES] = {0};
+static int i3c_initialized[I3C_NUM_INSTANCES] = {0};
 
-struct i3c_i3c_device connected_devices[] =
+struct i3c_device connected_devices[] =
 {
     {
         .static_address = DEV_ADDRESS,
@@ -125,6 +126,19 @@ struct i3c_i3c_device connected_devices[] =
 };
 
 struct i3c_dev_list dev_list = {0};
+
+static int is_any_instance_initialized(void)
+{
+    for (uint32_t i = 0U; i < I3C_NUM_INSTANCES; i++)
+    {
+        if (i3c_initialized[i] != 0)
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
 
 int is_48bit_unsigned_hex(const char *hex_str)
 {
@@ -211,7 +225,7 @@ BaseType_t cmd_i3c( char *write_buffer, size_t write_buffer_len,
     {
         if (connected_devices[1].static_address != 0x0)
         {
-            if (initialized == 1)
+            if (is_any_instance_initialized() != 0)
             {
                 printf("\r\nBus is already initialized");
                 return pdFAIL;
@@ -256,7 +270,7 @@ BaseType_t cmd_i3c( char *write_buffer, size_t write_buffer_len,
     {
         if (connected_devices[0].device_id != 0x0)
         {
-            if (initialized == 1)
+            if (is_any_instance_initialized() != 0)
             {
                 printf("\r\nBus is already initialized");
                 return pdFAIL;
@@ -338,24 +352,32 @@ BaseType_t cmd_i3c( char *write_buffer, size_t write_buffer_len,
         {
             return pdFAIL;
         }
-        if (i3c_open(instance) != 0)
+
+        if (i3c_initialized[instance] != 0)
+        {
+            printf("\r\nI3C instance already initialized");
+            return pdFALSE;
+        }
+
+        i3c_handles[instance] = i3c_open(instance);
+        if (i3c_handles[instance] == NULL)
         {
             printf("\r\nI3C instance not initialized");
             return pdFAIL;
         }
 
-        if (i3c_ioctl(instance, I3C_IOCTL_TARGET_ATTACH, &dev_list) != 0)
+        if (i3c_ioctl(i3c_handles[instance], I3C_IOCTL_TARGET_ATTACH, &dev_list) != 0)
         {
             printf("\r\nI3C Target not attached");
             return pdFAIL;
         }
 
-        if (i3c_ioctl(instance, I3C_IOCTL_BUS_INIT, &connected_devices[0]) != 0)
+        if (i3c_ioctl(i3c_handles[instance], I3C_IOCTL_BUS_INIT, &connected_devices[0]) != 0)
         {
             printf("\r\nDynamic address not assigned to devices");
             return pdFAIL;
         }
-        initialized = 1;
+        i3c_initialized[instance] = 1;
         printf ("\r\nInitialized the I3C bus");
         return pdFALSE;
     }
@@ -378,12 +400,7 @@ BaseType_t cmd_i3c( char *write_buffer, size_t write_buffer_len,
                     "\r\n  data              Data written to the memory. User can provide multiple values. Valid data range is from 0x00 to 0xFF.");
             return pdFALSE;
         }
-        if (initialized == 0)
-        {
-            printf("\r\nI3C bus not initilazed. Use i3c init before read/write");
-            return pdFAIL;
-        }
-        else if ((param2 == NULL) || (param3 == NULL) || (param4 == NULL))
+        if ((param2 == NULL) || (param3 == NULL) || (param4 == NULL))
         {
             printf("\r\nIncorrect number of arguments."
                     "\r\nEnter 'i3c write help' for more information.");
@@ -392,6 +409,12 @@ BaseType_t cmd_i3c( char *write_buffer, size_t write_buffer_len,
         ret =  cli_get_decimal("i3c write","instance", param2, 0, 1, &instance);
         if (ret != 0)
         {
+            return pdFAIL;
+        }
+        if ((i3c_initialized[instance] == 0) || (i3c_handles[instance] == NULL))
+        {
+            printf("\r\nI3C instance %u is not initialized. Use i3c init %u",
+                    instance, instance);
             return pdFAIL;
         }
         dev_id = strtol(param3, NULL, 16);
@@ -433,7 +456,7 @@ BaseType_t cmd_i3c( char *write_buffer, size_t write_buffer_len,
             xfer_cmd[0].buffer = xfer_data;
             xfer_cmd[0].length = size + 2;
             xfer_cmd[0].read = false;
-            if (i3c_transfer_sync(instance, EEPROM_ADDRESS, &xfer_cmd[0], 1,
+            if (i3c_transfer_sync(i3c_handles[instance], EEPROM_ADDRESS, &xfer_cmd[0], 1,
                     true) != 0)
             {
                 printf("\r\nWrite failed. Make sure the device is attached.");
@@ -466,7 +489,7 @@ BaseType_t cmd_i3c( char *write_buffer, size_t write_buffer_len,
             xfer_cmd[0].length = size + 1;
             xfer_cmd[0].read = 0;
 
-            if (i3c_transfer_sync(instance, dynamic_addr, &xfer_cmd[0], 1,
+            if (i3c_transfer_sync(i3c_handles[instance], dynamic_addr, &xfer_cmd[0], 1,
                     false) != 0)
             {
                 printf("\r\nWrite failed. Make sure the device is attached.");
@@ -496,12 +519,7 @@ BaseType_t cmd_i3c( char *write_buffer, size_t write_buffer_len,
                     "\r\n  size              Number of bytes to read.");
             return pdFALSE;
         }
-        if (initialized == 0)
-        {
-            printf("\r\nI3C bus not initilazed. Use i3c init before read/write");
-            return pdFAIL;
-        }
-        else if ((param2 == NULL) || (param3 == NULL) ||
+        if ((param2 == NULL) || (param3 == NULL) ||
                 (param4 == NULL) || (param5 == NULL))
         {
             printf("\r\nIncorrect number of arguments"
@@ -511,6 +529,12 @@ BaseType_t cmd_i3c( char *write_buffer, size_t write_buffer_len,
         ret =  cli_get_decimal("i3c read","instance", param2, 0, 1, &instance);
         if (ret != 0)
         {
+            return pdFAIL;
+        }
+        if ((i3c_initialized[instance] == 0) || (i3c_handles[instance] == NULL))
+        {
+            printf("\r\nI3C instance %u is not initialized. Use i3c init %u",
+                    instance, instance);
             return pdFAIL;
         }
         int64_t id = strtol(param3, NULL, 16);
@@ -548,7 +572,7 @@ BaseType_t cmd_i3c( char *write_buffer, size_t write_buffer_len,
             xfer_cmd[1].length = size;
             xfer_cmd[1].read = true;
 
-            if (i3c_transfer_sync(instance, EEPROM_ADDRESS, xfer_cmd, 2,
+            if (i3c_transfer_sync(i3c_handles[instance], EEPROM_ADDRESS, xfer_cmd, 2,
                     true) != 0)
             {
                 printf("\r\nRead failed. Make sure the device is attached.");
@@ -558,7 +582,7 @@ BaseType_t cmd_i3c( char *write_buffer, size_t write_buffer_len,
         else
         {
             /* I3C device */
-            int lRet = i3c_ioctl(instance, I3C_IOCTL_GET_DYNADDRESS,
+            int lRet = i3c_ioctl(i3c_handles[instance], I3C_IOCTL_GET_DYNADDRESS,
                     &connected_devices[ 0 ]);
             if (lRet != 0)
             {
@@ -588,7 +612,7 @@ BaseType_t cmd_i3c( char *write_buffer, size_t write_buffer_len,
             xfer_cmd[1].length = size;
             xfer_cmd[1].read = 1;
 
-            if (i3c_transfer_sync(instance, dynamic_addr, xfer_cmd, 2, false) != 0)
+            if (i3c_transfer_sync(i3c_handles[instance], dynamic_addr, xfer_cmd, 2, false) != 0)
             {
                 printf("\r\nRead failed. Make sure the device is attached.");
                 return pdFAIL;

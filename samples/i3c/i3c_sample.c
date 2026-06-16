@@ -58,6 +58,7 @@
 
 /* I2C test macro */
 #define ENABLE_I2C_I3C_TEST    1
+#define ENABLE_I3C_IBI_SAMPLE 0
 
 #define I3C_INSTANCE      1
 #define DEV_ADDRESS       0
@@ -65,6 +66,7 @@
 
 /* LPS27HHW register addresses */
 #define WHOAMI    0x0F
+#define IF_CTRL    0x0E
 
 #define CTRL_1    0x10
 #define CTRL_2    0x11
@@ -78,6 +80,8 @@
 /* LPS27HHW Device ID */
 #define LPS27HHW_DEV_ID      0xB3
 
+#define IBI_PAYLOAD_MAX            32U
+
 /* EEPROM I2C Slave address */
 #define EEPROM_ADDRESS       0x50
 #define EEPROM_START_ADDR    0x00
@@ -88,13 +92,25 @@ uint8_t wr_buf[NUM_TEST_BYTES + 5];
 /* EEPROM read buffer*/
 uint8_t rd_buf[NUM_TEST_BYTES + 5];
 
+#if ENABLE_I3C_IBI_SAMPLE
+static volatile bool ibi_pending;
+static uint8_t ibi_payload[IBI_PAYLOAD_MAX];
+static volatile uint8_t ibi_payload_len;
+static volatile uint8_t ibi_status;
+static volatile uint8_t ibi_id;
+static osal_semaphore_def_t ibi_event_sem_mem;
+static osal_semaphore_t ibi_event_sem;
+#endif
+
+static i3c_handle_t g_i3c_handle;
+
 /* Structure to describe the devices connected to the I3C bus. I3C controller supports both
  * I3C devices and legacy I2C devices. For I3C devices both the static address and
  * preferred dynamic address is set as zero and  device_id is set with the PID of the slave device.
  * For legacy I2C device the PID is set a zero and the static address field is set with the address
  * of the device.
  */
-struct i3c_i3c_device connected_devices[] =
+struct i3c_device connected_devices[] =
 {
     {
         .static_address = DEV_ADDRESS,
@@ -141,6 +157,30 @@ static int verify_buffer(uint8_t *buf, uint32_t nbytes, uint8_t start_num)
     return ret;
 }
 
+#if ENABLE_I3C_IBI_SAMPLE
+static void i3c_ibi_callback(uint8_t ibi_id_cb, uint8_t ibi_status_cb,
+        const uint8_t *payload, uint8_t payload_len, void *param)
+{
+    (void)param;
+    uint8_t copy_len = payload_len;
+    if (copy_len > IBI_PAYLOAD_MAX)
+    {
+        copy_len = IBI_PAYLOAD_MAX;
+    }
+
+    for (uint8_t i = 0; i < copy_len; i++)
+    {
+        ibi_payload[i] = payload[i];
+    }
+
+    ibi_payload_len = copy_len;
+    ibi_status = ibi_status_cb;
+    ibi_id = ibi_id_cb;
+    ibi_pending = true;
+    (void)osal_semaphore_post(ibi_event_sem);
+}
+#endif
+
 /*
  * @brief Read from legacy I2C EEPROM.
  *
@@ -173,7 +213,7 @@ int eeprom_i3c_i2c_read(uint8_t reg_address, uint8_t *data, uint32_t num_bytes)
     xfer_request[1].read = true;
 
     /* The I2C transfer function */
-    retval = i3c_transfer_sync(I3C_INSTANCE, EEPROM_ADDRESS, xfer_request, 2,
+    retval = i3c_transfer_sync(g_i3c_handle, EEPROM_ADDRESS, xfer_request, 2,
             is_i2c);
 
     return retval;
@@ -207,7 +247,7 @@ int eeprom_i3c_i2c_write(uint8_t reg_address, uint8_t *data, uint8_t num_bytes)
     xfer_request.length = num_bytes + 2;
     xfer_request.read = false;
 
-    retval = i3c_transfer_sync(I3C_INSTANCE, EEPROM_ADDRESS, &xfer_request, 1,
+    retval = i3c_transfer_sync(g_i3c_handle, EEPROM_ADDRESS, &xfer_request, 1,
             is_i2c);
     return retval;
 }
@@ -238,7 +278,7 @@ int lps27hhw_read_register(uint8_t reg_address, uint8_t *data,
     xfer_request[1].length = num_bytes;
     xfer_request[1].read = 1;
 
-    retval = i3c_transfer_sync(I3C_INSTANCE,
+    retval = i3c_transfer_sync(g_i3c_handle,
             connected_devices[0].dynamic_address,
             xfer_request, 2, is_i2c);
 
@@ -273,7 +313,7 @@ int lps27hhw_write_register(uint8_t reg_address, uint8_t *data,
     xfer_request.length = num_bytes + 1; /* for register address */
     xfer_request.read = 0; /* write request */
 
-    retval = i3c_transfer_sync(I3C_INSTANCE,
+    retval = i3c_transfer_sync(g_i3c_handle,
             connected_devices[0].dynamic_address,
             &xfer_request, 1, is_i2c);
 
@@ -290,6 +330,7 @@ void i3c_task(void)
     };
 
     int32_t retval;
+    i3c_handle_t hi3c;
     uint8_t reg_address = 0x0F;
     uint8_t whoam_i = 0, data[4];
     uint32_t itr = 0;
@@ -300,16 +341,17 @@ void i3c_task(void)
      * Initializes the address allotment table
      */
 
-    retval = i3c_open(I3C_INSTANCE);
-    if (retval != 0)
+    hi3c = i3c_open(I3C_INSTANCE);
+    if (hi3c == NULL)
     {
         ERROR("i3c instance not initialized");
         return;
     }
+    g_i3c_handle = hi3c;
 
     /* Add the devices connected to the bus */
     PRINT("Attaching the devices to the bus ...");
-    retval = i3c_ioctl(I3C_INSTANCE, I3C_IOCTL_TARGET_ATTACH, &dev_list);
+    retval = i3c_ioctl(hi3c, I3C_IOCTL_TARGET_ATTACH, &dev_list);
     if (retval != 0)
     {
         ERROR("I3C Target not attached");
@@ -319,7 +361,7 @@ void i3c_task(void)
 
     /* Initialize the i3c bus. Performs dynamic address assignment  */
     PRINT("Initializing the I3C bus ...");
-    retval = i3c_ioctl(I3C_INSTANCE, I3C_IOCTL_BUS_INIT, &connected_devices[0]);
+    retval = i3c_ioctl(hi3c, I3C_IOCTL_BUS_INIT, &connected_devices[0]);
     if (retval != 0)
     {
         PRINT("Dynamic address not assigned to devices");
@@ -329,7 +371,7 @@ void i3c_task(void)
     PRINT("Starting I2C test.");
     /*Perform Test for the I2C device*/
     PRINT("Checking if I2C device is valid ...");
-    retval = i3c_ioctl(I3C_INSTANCE, I2C_IOCTL_ADDRESS_VALID,
+    retval = i3c_ioctl(hi3c, I2C_IOCTL_ADDRESS_VALID,
             &connected_devices[1]);
     if (retval != 0)
     {
@@ -382,7 +424,7 @@ void i3c_task(void)
     PRINT("Starting I3C test");
     /*Get the assigned dynamic address of the I3C device*/
     PRINT("Getting I3C slave dynamic address ...");
-    retval = i3c_ioctl(I3C_INSTANCE, I3C_IOCTL_GET_DYNADDRESS,
+    retval = i3c_ioctl(hi3c, I3C_IOCTL_GET_DYNADDRESS,
             &connected_devices[0]);
     if (retval != 0)
     {
@@ -425,6 +467,14 @@ void i3c_task(void)
             data[0] = 0;
             retval = lps27hhw_read_register(reg_address, &data[0], 1);
         } while (data[0] & 0x4);   /* wait until SW bit is cleared */
+
+        reg_address = IF_CTRL;
+        data[0] = (uint8_t)((1U << 7) | (1U << 2) | (1U << 0));
+        retval = lps27hhw_write_register(reg_address, &data[0], 1);
+        if (retval != 0)
+        {
+            ERROR("Failed to configure IF_CTRL");
+        }
 
         reg_address = CTRL_1;
         data[0] = 0x12; /* SET BDU and ODR */
@@ -476,7 +526,103 @@ void i3c_task(void)
             itr++;
         }
         PRINT("Done.");
+
+#if ENABLE_I3C_IBI_SAMPLE
+        bool ibi_ok = true;
+
+        reg_address = CTRL_3;
+        data[0] = 0x04; /* DRDY enable */
+        retval = lps27hhw_write_register(reg_address, &data[0], 1);
+        if (retval != 0)
+        {
+            ERROR("Failed to configure DRDY");
+            ibi_ok = false;
+        }
+
+        if (ibi_ok)
+        {
+            ibi_event_sem = osal_semaphore_create(&ibi_event_sem_mem);
+            if (ibi_event_sem == NULL)
+            {
+                ERROR("Failed to create IBI semaphore");
+                ibi_ok = false;
+            }
+        }
+
+        if (ibi_ok)
+        {
+            struct i3c_ibi_config ibi_cfg = {
+                .dev = &connected_devices[0],
+                .enable = true
+            };
+            i3c_set_ibi_callback(hi3c, i3c_ibi_callback, NULL);
+            retval = i3c_ioctl(hi3c, I3C_IOCTL_CONFIG_IBI, &ibi_cfg);
+            if (retval != 0)
+            {
+                ERROR("Failed to enable IBI");
+                ibi_ok = false;
+            }
+        }
+
+        if (ibi_ok)
+        {
+            itr = 0;
+            ibi_pending = false;
+            PRINT("Reading temperature via IBI for 10 events ...");
+            while (itr < 10)
+            {
+                if (osal_semaphore_wait(ibi_event_sem, 2000U) == false)
+                {
+                    ERROR("Timed out waiting for IBI event");
+                    break;
+                }
+
+                if (ibi_pending)
+                {
+                    ibi_pending = false;
+                    PRINT("IBI: id=0x%02X status=0x%02X len=%u",
+                            ibi_id, ibi_status, ibi_payload_len);
+                    osal_task_delay(1U);
+                    reg_address = STATUS;
+                    data[0] = 0;
+                    retval = lps27hhw_read_register(reg_address, &data[0], 1);
+                    if (retval != 0)
+                    {
+                        ERROR("Status read failed after IBI (%d)", retval);
+                        continue;
+                    }
+
+                    if ((retval == 0) && (data[0] & 0x2))
+                    {
+                        reg_address = TEMP_OUT_L;
+                        data[0] = 0;
+                        retval = lps27hhw_read_register(reg_address, &data[0], 1);
+                        if (retval == 0)
+                        {
+                            reg_address = TEMP_OUT_H;
+                            data[1] = 0;
+                            retval = lps27hhw_read_register(reg_address, &data[1], 1);
+                        }
+                        if (retval != 0)
+                        {
+                            ERROR("Read Transfer not successful (%d)", retval);
+                        }
+                        else
+                        {
+                            PRINT("Temperature reading =  %d *C",
+                                    ((data[1] << 8) | (data[0])) / 100);
+                        }
+                        itr++;
+                    }
+                }
+            }
+            (void)osal_semaphore_delete(ibi_event_sem);
+            ibi_event_sem = NULL;
+            PRINT("Done.");
+        }
+#endif
         PRINT("I3C test completed");
     }
+    (void)i3c_close(hi3c);
     PRINT("I3C sample completed.");
 }

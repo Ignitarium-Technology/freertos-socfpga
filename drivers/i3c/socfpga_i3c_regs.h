@@ -1,5 +1,5 @@
-/*
- * SPDX-FileCopyrightText: Copyright (C) 2025 Altera Corporation
+/**
+ * SPDX-FileCopyrightText: Copyright (C) 2025-2026 Altera Corporation
  *
  * SPDX-License-Identifier: MIT-0
  *
@@ -294,6 +294,9 @@
 #define I3C_IBI_QUEUE_CTRL_NOTIFY_SIR_REJECTED_MASK \
     0x00000008U
 #define I3C_IBI_QUEUE_CTRL_NOTIFY_SIR_REJECTED_POS    3U
+#define I3C_IBI_QUEUE_CTRL_NOTIFY_MR_REJECTED_MASK \
+    0x00000002U
+#define I3C_IBI_QUEUE_CTRL_NOTIFY_MR_REJECTED_POS     1U
 #define I3C_IBI_QUEUE_CTRL_NOTIFY_HJ_REJECTED_MASK \
     0x00000001U
 #define I3C_IBI_QUEUE_CTRL_NOTIFY_HJ_REJECTED_POS     0U
@@ -1054,4 +1057,4 @@
 #define I3C_DEV_ADDR_TABLE11_LOC1_STATIC_ADDRESS_POS        0U
 
 
-#endif  //__SOCFPGA_I3C_REGS_H__
+#endif  /* __SOCFPGA_I3C_REGS_H__ */
