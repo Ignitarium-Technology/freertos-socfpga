@@ -16,7 +16,7 @@
 #include <task.h>
 
 #define STDIO_LOCK_COUNT ( PORT_SPIN_LOCK_COUNT - PORT_STDLIB_SPIN_LOCK_STDIN )
-#define STDIO_LOCK_ID(x)    ( x - PORT_STDLIB_SPIN_LOCK_MALLOC )
+#define STDIO_LOCK_ID(x)    ( x - PORT_STDLIB_SPIN_LOCK_SETUP )
 
 struct __lock
 {
@@ -28,16 +28,21 @@ static size_t remaining_heap;
 static size_t smallest_ever_remaining_heap;
 extern struct __lock __lock___malloc_recursive_mutex;
 struct __lock stdio_lock_data[ STDIO_LOCK_COUNT ];
+static int lock_init_idx = 0;
 
-static void get_spin_lock(int id)
+static void get_spin_lock(int lock_id)
 {
+    uint32_t core_id = ulGetCoreId();
+    configASSERT( lock_id >= 0 );
+    configASSERT( lock_id < PORT_SPIN_LOCK_COUNT );
     portDISABLE_INTERRUPTS();
-    portGET_STDLIB_LOCK(id);
+    portGET_STDLIB_LOCK(lock_id, core_id);
 }
 
-static int give_spin_lock(int id)
+static int give_spin_lock(int lock_id)
 {
-    int ret = portRELEASE_STDLIB_LOCK(id);
+    uint32_t core_id = ulGetCoreId();
+    int ret = portRELEASE_STDLIB_LOCK(lock_id, core_id);
     if( ret <= 0 )
     {
         portENABLE_INTERRUPTS();
@@ -56,13 +61,28 @@ void __wrap___retarget_lock_init(_LOCK_T *lock)
 
 void __wrap___retarget_lock_init_recursive(_LOCK_T *lock)
 {
-    static int lock_init_idx = 0;
-    if(lock_init_idx < 3)
+    uint32_t core_id = ulGetCoreId();
+    if( lock == NULL )
+    {
+        return;
+    }
+
+    vGetLock( PORT_STDLIB_SPIN_LOCK_SETUP, core_id );
+
+    if( *lock != NULL )
+    {
+        (void)vReleaseLock( PORT_STDLIB_SPIN_LOCK_SETUP, core_id );
+        return;
+    }
+
+    if( lock_init_idx < STDIO_LOCK_COUNT )
     {
         stdio_lock_data[lock_init_idx].spinlock_id  = lock_init_idx + 1;
         *lock = &stdio_lock_data[lock_init_idx];
         lock_init_idx++;
     }
+
+    (void)vReleaseLock( PORT_STDLIB_SPIN_LOCK_SETUP, core_id );
 }
 
 void __wrap___retarget_lock_close(_LOCK_T lock)
@@ -77,33 +97,57 @@ void __wrap___retarget_lock_close_recursive(_LOCK_T lock)
 
 void __wrap___retarget_lock_acquire(_LOCK_T lock)
 {
+    if( lock == NULL )
+    {
+        return;
+    }
     get_spin_lock(lock->spinlock_id);
 }
 
 void __wrap___retarget_lock_acquire_recursive(_LOCK_T lock)
 {
+    if( lock == NULL )
+    {
+        return;
+    }
     get_spin_lock(lock->spinlock_id);
 }
 
 int __wrap___retarget_lock_try_acquire(_LOCK_T lock)
 {
+    if( lock == NULL )
+    {
+        return 0;
+    }
     get_spin_lock(lock->spinlock_id);
     return 1;
 }
 
 int __wrap___retarget_lock_try_acquire_recursive(_LOCK_T lock)
 {
+    if( lock == NULL )
+    {
+        return 0;
+    }
     get_spin_lock(lock->spinlock_id);
     return 1;
 }
 
 void __wrap___retarget_lock_release(_LOCK_T lock)
 {
+    if( lock == NULL )
+    {
+        return;
+    }
     (void)give_spin_lock(lock->spinlock_id);
 }
 
 void __wrap___retarget_lock_release_recursive(_LOCK_T lock)
 {
+    if( lock == NULL )
+    {
+        return;
+    }
     (void)give_spin_lock(lock->spinlock_id);
 }
 /*-----------------------------------------------------------*/

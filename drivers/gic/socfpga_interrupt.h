@@ -381,7 +381,7 @@ void interrupt_init_gic(void);
 /**
  * @brief Initializes the GIC redistributor of the core
  */
-void interrupt_enable_core_rdis(void);
+void interrupt_enable_core_redis(void);
 
 /**
  * @brief Default interrupt handler for GIC.

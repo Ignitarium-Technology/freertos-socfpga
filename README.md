@@ -176,18 +176,18 @@ The following parameters can be specified during the CMake configuration stage:
   ```bash
   -DCMAKE_BUILD_TYPE=Debug
   ```
-- **SMP enable/disable**<br>
-  Enable or disable SMP mode of kernel. This port supports parallel execution of either 2xA55 or 2xA76 (Heterogeneous SMP on all cores not supported now).
-  ```bash
-  -DSMP=ON
-  ```
-  Default state is SMP off (-DSMP=OFF)<br>
-  ***configRUN_MULTIPLE_PRIORITIES*** : setting this config to 1 will cause tasks of same priorities to run simultaneously in separate cores
+***configRUN_MULTIPLE_PRIORITIES*** : setting this config to 1 will cause tasks of same priorities to run simultaneously in separate cores
 
 - **A55 vs. A76 Boot**<br>
   By default, the build system compiles for **A55** as the boot core. To tune for A76 boot core version of the application, specify the option:
   ```bash
   -DCORE=A76
+  ```
+
+- **Stack core count (linker)**<br>
+  Override the number of core stacks reserved by the linker. This only affects `_NUM_CORE` stack allocation, not which cores are enabled.
+  ```bash
+  -DCORE_COUNT=<n>
   ```
 
 - **ATF Log Level**<br>
@@ -214,23 +214,33 @@ The following parameters can be specified during the CMake configuration stage:
 
 #### SMP configuration guidance
 
-These settings are present at `FreeRTOS/Demo/SOCFPGA/FreeRTOSConfig.h` and control SMP behavior once `-DSMP=ON` is enabled.
+These settings are present at `FreeRTOS/Demo/SOCFPGA/FreeRTOSConfig.h` and `FreeRTOS/Demo/SOCFPGA/FreeRTOSConfigSmp.h` and control SMP behavior.
 
 - **configNUMBER_OF_CORES**
-  - Derived from `SMP` in this project: `1` when SMP is off, `2` when SMP is on.
+  - Derived from `configSMP_ENABLED_CORE_COUNT` unless explicitly overridden.
 
 - **configUSE_CORE_AFFINITY**
   - `1` enables task core affinity (pinning tasks to a specific core).
-  - Keep `1` when SMP is on; set `0` only if you want the scheduler to freely migrate tasks.
+  - Keep `1` when running multiple cores; set `0` only if you want the scheduler to freely migrate tasks.
 
 - **configUSE_PASSIVE_IDLE_HOOK**
   - `0` keeps the standard idle hook behavior.
   - Set to `1` only if you need passive idle hook calls for the secondary idle tasks.
 
-Quick choices:
-```text
-Single core: SMP=OFF -> configNUMBER_OF_CORES=1, configUSE_CORE_AFFINITY=0
-Dual core:   SMP=ON  -> configNUMBER_OF_CORES=2, configUSE_CORE_AFFINITY=1
+#### Core configuration (SMP)
+
+Core enable/MPIDR configuration is controlled in `FreeRTOS/Demo/SOCFPGA/FreeRTOSConfigSmp.h`.
+
+- Set `configSMP_CORE0_ENABLE` .. `configSMP_CORE3_ENABLE` to 0/1.
+- Set MPIDR values via `configSMP_CORE*_MPIDR` if needed.
+- Agilex3 supports core 0 and 1 only; core 2/3 are forced off when `AGILEX3` is defined.
+
+Example (SMP, cores 0-1 enabled):
+```c
+#define configSMP_CORE0_ENABLE 1
+#define configSMP_CORE1_ENABLE 1
+#define configSMP_CORE2_ENABLE 0
+#define configSMP_CORE3_ENABLE 0
 ```
 
 The following applications exist in the repository. Build the application of your choice.

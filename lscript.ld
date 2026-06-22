@@ -2,9 +2,14 @@
 _STACK_SIZE = DEFINED(_STACK_SIZE) ? _STACK_SIZE : 0x2000;
 _HEAP_SIZE = DEFINED(_HEAP_SIZE) ? _HEAP_SIZE : 0x2000;
 
-_EL0_STACK_SIZE = DEFINED(_EL0_STACK_SIZE) ? _EL0_STACK_SIZE : 0x2000;
-_EL1_STACK_SIZE = DEFINED(_EL1_STACK_SIZE) ? _EL1_STACK_SIZE : 0x2000;
-_EL2_STACK_SIZE = DEFINED(_EL2_STACK_SIZE) ? _EL2_STACK_SIZE : 0x2000;
+_EL0_STACK_SIZE = DEFINED(_EL0_STACK_SIZE) ? _EL0_STACK_SIZE : _STACK_SIZE;
+_EL1_STACK_SIZE = DEFINED(_EL1_STACK_SIZE) ? _EL1_STACK_SIZE : _STACK_SIZE;
+_EL2_STACK_SIZE = DEFINED(_EL2_STACK_SIZE) ? _EL2_STACK_SIZE : _STACK_SIZE;
+_NUM_CORE = DEFINED(_NUM_CORE) ? _NUM_CORE : 1;
+
+_STACK_EL012 = ALIGN(_EL0_STACK_SIZE, 64) +
+        ALIGN(_EL1_STACK_SIZE, 64) + ALIGN(_EL2_STACK_SIZE, 64);
+_STACK_MAX = _STACK_EL012 * _NUM_CORE;
 
 MEMORY
 {
@@ -16,7 +21,7 @@ MEMORY
 
 ENTRY(_vector_table)
 PROVIDE(end = _heap_end); /*Symbol for stdlib heap*/
-PROVIDE(__stack = __el1_stack); /*Symbol for stdlib stack*/
+PROVIDE(__stack = __stdlib_stack); /*Symbol for stdlib stack*/
 /* Define the sections, and where they are mapped in memory */
 
 SECTIONS
@@ -241,31 +246,14 @@ SECTIONS
 
     /*Leave 4K space for saftey (if any input section are to be put in .section)*/
     .stack (NOLOAD) : {
+        __stack_end = .;
         . = ALIGN(64);
-        _el2_stack_end = .;
-        . += 0x40000;
+        . += _STACK_EL012;
         . = ALIGN(64);
-        __el2_stack = .;
-        _el21_stack_end = .;
-        . += 0x40000;
+        __stdlib_stack = .;
+        . += _STACK_MAX;
         . = ALIGN(64);
-        __el21_stack = .;
-        _el1_stack_end = .;
-        . += 0x40000;
-        . = ALIGN(64);
-        __el1_stack = .;
-        _el11_stack_end = .;
-        . += 0x40000;
-        . = ALIGN(64);
-        __el11_stack = .;
-        _el0_stack_end = .;
-        . += 0x40000;
-        . = ALIGN(64);
-        __el0_stack = .;
-        _el01_stack_end = .;
-        . += 0x40000;
-        . = ALIGN(64);
-        __el01_stack = .;
+        __stack_top = .;
     } > SRAM
 
     _end = .; PROVIDE (end = .);

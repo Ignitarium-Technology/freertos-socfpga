@@ -1,6 +1,7 @@
 /*
  * FreeRTOS+TCP V3.1.0
  * Copyright (C) 2022 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * SPDX-FileCopyrightText: Copyright (C) 2025-2026 Altera Corporation
  *
  * SPDX-License-Identifier: MIT
  *
@@ -23,12 +24,6 @@
  *
  * http://aws.amazon.com/freertos
  * http://www.FreeRTOS.org
- */
-
-/*
- * SPDX-FileCopyrightText: Copyright (C) 2025 Altera Corporation
- *
- * Modifications to support Altera SoC FPGA
  */
 
 /* Standard includes. */
@@ -54,6 +49,7 @@
 
 #include "socfpga_xgmac.h"
 #include "socfpga_xgmac_phy.h"
+#include "osal_log.h"
 /*-----------------------------------------------------------*/
 
 /* If ipconfigETHERNET_DRIVER_FILTERS_FRAME_TYPES is set to 1, then the Ethernet
@@ -297,7 +293,7 @@ uint8_t * pucBufferPool = NULL;
 
             if( pXGMACHandle == NULL )
             {
-                FreeRTOS_printf( ( "SOCFPGA_XGMAC: EMAC Initialization Failed....\n" ) );
+                ERROR( "SOCFPGA_XGMAC: EMAC Initialization Failed....\n" );
                 eXGMACState = XGMAC_Failed;
                 break;
             }
@@ -308,7 +304,7 @@ uint8_t * pucBufferPool = NULL;
 
             if( xStatus != 0 )
             {
-                FreeRTOS_printf( ( "SOCFPGA_XGMAC: IRQ Callback Registration Failed....\n" ) );
+                ERROR( "SOCFPGA_XGMAC: IRQ Callback Registration Failed....\n" );
                 eXGMACState = XGMAC_Failed;
                 break;
             }
@@ -324,7 +320,7 @@ uint8_t * pucBufferPool = NULL;
 
             if( xStatus != 0 )
             {
-                FreeRTOS_printf( ( "SOCFPGA_XGMAC: PHY Detection Failed....\n" ) );
+                ERROR( "SOCFPGA_XGMAC: PHY Detection Failed....\n" );
                 eXGMACState = XGMAC_Failed;
                 break;
             }
@@ -334,7 +330,7 @@ uint8_t * pucBufferPool = NULL;
 
             if( xStatus != 0 )
             {
-                FreeRTOS_printf( ( "SOCFPGA_XGMAC: PHY Initialization Failed....\n" ) );
+                ERROR( "SOCFPGA_XGMAC: PHY Initialization Failed....\n" );
                 eXGMACState = XGMAC_Failed;
                 break;
             }
@@ -353,7 +349,7 @@ uint8_t * pucBufferPool = NULL;
 
                     if( xRetVal != pdPASS )
                     {
-                        FreeRTOS_printf( ( "SOCFPGA_XGMAC: Tx DMA Buffer Allocation Failed....\n" ) );
+                        ERROR( "SOCFPGA_XGMAC: Tx DMA Buffer Allocation Failed....\n" );
                         eXGMACState = XGMAC_Failed;
                         break;
                     }
@@ -367,7 +363,7 @@ uint8_t * pucBufferPool = NULL;
 
                     if( xRetVal != pdPASS )
                     {
-                        FreeRTOS_printf( ( "SOCFPGA_XGMAC: Rx DMA Buffer Allocation Failed....\n" ) );
+                        ERROR( "SOCFPGA_XGMAC: Rx DMA Buffer Allocation Failed....\n" );
                         eXGMACState = XGMAC_Failed;
                         break;
                     }
@@ -377,7 +373,7 @@ uint8_t * pucBufferPool = NULL;
 
                 if( pucBufferPool == NULL )
                 {
-                    FreeRTOS_printf( ( "SOCFPGA_XGMAC: Rx Buffer Pool is NULL....\n" ) );
+                    ERROR( "SOCFPGA_XGMAC: Rx Buffer Pool is NULL....\n" );
                     eXGMACState = XGMAC_Failed;
                     break;
                 }
@@ -386,7 +382,7 @@ uint8_t * pucBufferPool = NULL;
 
             if( xStatus != 0 )
             {
-                FreeRTOS_printf( ( "SOCFPGA_XGMAC: DMA Initialization Failed....\n" ) );
+                ERROR( "SOCFPGA_XGMAC: DMA Initialization Failed....\n" );
                 eXGMACState = XGMAC_Failed;
                 break;
             }
@@ -396,7 +392,7 @@ uint8_t * pucBufferPool = NULL;
 
             if( xRetVal != pdPASS )
             {
-                FreeRTOS_printf( ( "SOCFPGA_XGMAC: Update Rx Descriptors Failed....\n" ) );
+                ERROR( "SOCFPGA_XGMAC: Update Rx Descriptors Failed....\n" );
                 eXGMACState = XGMAC_Failed;
                 break;
             }
@@ -411,7 +407,7 @@ uint8_t * pucBufferPool = NULL;
 
             if( xStatus != 0 )
             {
-                FreeRTOS_printf( ( "SOCFPGA_XGMAC: Set EMAC operating Speed Failed....\n" ) );
+                ERROR( "SOCFPGA_XGMAC: Set EMAC operating Speed Failed....\n" );
                 eXGMACState = XGMAC_Failed;
                 break;
             }
@@ -420,7 +416,7 @@ uint8_t * pucBufferPool = NULL;
 
             if( xStatus != 0 )
             {
-                FreeRTOS_printf( ( "SOCFPGA_XGMAC: EMAC Start Failed....\n" ) );
+                ERROR( "SOCFPGA_XGMAC: EMAC Start Failed....\n" );
                 eXGMACState = XGMAC_Failed;
                 break;
             }
@@ -491,7 +487,7 @@ uint32_t ulDataLength = 0;
 
     if( pXGMACHandle == NULL )
     {
-        FreeRTOS_printf( ( "XGMAC Handle is NULL, EMAC not initialized\n" ) );
+        ERROR( "XGMAC Handle is NULL, EMAC not initialized\n" );
         return pdFALSE;
     }
 
@@ -510,14 +506,18 @@ uint32_t ulDataLength = 0;
 
         if( pxNetworkBuffer->pucEthernetBuffer == NULL )
         {
-            FreeRTOS_printf( ( "Ethernet Buffer is NULL\n" ) );
+            ERROR( "Ethernet Buffer is NULL\n" );
             return pdFALSE;
         }
 
         #if ( ipconfigZERO_COPY_TX_DRIVER == 0 )
             /* Get Tx Buffer Index from DMA Tx Buffer Pool */
             pucBuffer = pucGetTXBuffer( pxTxBufferPool, XGMAC_MAX_PACKET_SIZE );
-            configASSERT( pucBuffer != NULL );
+            if( pucBuffer == NULL )
+            {
+                WARN( "Tx Buffer Pool Fully Used\n" );
+                return pdFALSE;
+            }
 
             /* Copy the bytes from NW buffer to XGMAC Tx Buffer  */
             ( void ) memcpy( pucBuffer, pxNetworkBuffer->pucEthernetBuffer, ulDataLength );
@@ -620,7 +620,7 @@ IPStackEvent_t xRxEvent;
         #endif /* ipconfigUSE_LINKED_RX_MESSAGES */
 
         iptraceETHERNET_RX_EVENT_LOST();
-        FreeRTOS_printf( ( "prvPassEthMessages: Can not queue return packet!\n" ) );
+        ERROR( "prvPassEthMessages: Can not queue return packet!\n" );
     }
     else
     {
@@ -692,7 +692,7 @@ volatile int msgCount = 0;
                 /* A packet has been received, but there is no replacement buffer and hence packet
                  * will be dropped
                  */
-                FreeRTOS_printf( ( "Unable to allocate a Network Buffer\n" ) );
+                ERROR( "Unable to allocate a Network Buffer\n" );
                 xSendPacket = pdFALSE;
             }
         }
@@ -773,7 +773,7 @@ volatile int msgCount = 0;
         /* Update the descriptor with new address and rest other fields */
         if( xgmac_refill_rx_descriptor( pXGMACHandle, pucRefillRxBuffer ) != 0 )
         {
-            FreeRTOS_printf( ( "SOCFPGA_XGMAC: Refill Rx Descriptor Failed....\n" ) );
+            ERROR( "SOCFPGA_XGMAC: Refill Rx Descriptor Failed....\n" );
             break;
         }
     } while( true );
@@ -861,40 +861,40 @@ BaseType_t xStatus = xReadPhyStatus( pxInterface );
     switch( xErrType )
     {
         case XGMAC_ERR_FATAL_BUS:
-            FreeRTOS_printf( ( "Fatal Bus Error on DMA Channel %d\n", ucErrChnlNum ) );
+            ERROR( "Fatal Bus Error on DMA Channel %d\n", ucErrChnlNum );
             break;
 
         case XGMAC_ERR_TX_STOPPED:
-            FreeRTOS_printf( ( "Transmit Stopped on DMA Channel %d Re-init NetworkInterface\n", \
-                               ucErrChnlNum ) );
+            ERROR( "Transmit Stopped on DMA Channel %d Re-init NetworkInterface\n",
+                   ucErrChnlNum );
             break;
 
         case XGMAC_ERR_RX_STOPPED:
-            FreeRTOS_printf( ( "Receive Stopped on DMA Channel %d Re-init NetworkInterface\n", \
-                               ucErrChnlNum ) );
+            ERROR( "Receive Stopped on DMA Channel %d Re-init NetworkInterface\n",
+                   ucErrChnlNum );
             break;
 
         case XGMAC_ERR_TX_BUF_UNAVAILABLE:
-            FreeRTOS_printf( ( "Transmit Buffer Unavailable Error on DMA Channel %d\n",
-                               ucErrChnlNum ) );
+            ERROR( "Transmit Buffer Unavailable Error on DMA Channel %d\n",
+                   ucErrChnlNum );
             break;
 
         case XGMAC_ERR_RX_BUF_UNAVAILABLE:
-            FreeRTOS_printf( ( "Receive Buffer Unavailable Error on DMA Channel %d\n", ucErrChnlNum ) );
+            ERROR( "Receive Buffer Unavailable Error on DMA Channel %d\n", ucErrChnlNum );
             break;
 
         case XGMAC_ERR_CNTXT_DESC:
-            FreeRTOS_printf( ( "Context Descriptor Error on DMA Channel %d\n",
-                               ucErrChnlNum ) );
+            ERROR( "Context Descriptor Error on DMA Channel %d\n",
+                   ucErrChnlNum );
             break;
 
         case XGMAC_ERR_DESC_DEFINE:
-            FreeRTOS_printf( ( "Descriptor Definition Error on DMA Channel %d\n",
-                               ucErrChnlNum ) );
+            ERROR( "Descriptor Definition Error on DMA Channel %d\n",
+                   ucErrChnlNum );
             break;
 
         case XGMAC_ERR_UNHANDLED:
-            FreeRTOS_printf( ( "Unhandled Error on DMA Channel %d\n", ucErrChnlNum ) );
+            ERROR( "Unhandled Error on DMA Channel %d\n", ucErrChnlNum );
             break;
 
         default:
@@ -990,7 +990,7 @@ xgmac_handle_t pXGMACHandle = ( xgmac_handle_t ) xEmacConfig[ instance ].hxgmac;
                     }
                     else
                     {
-                        FreeRTOS_printf( ( "Tx Done Get Buff: Can not find network buffer\n" ) );
+                        ERROR( "Tx Done Get Buff: Can not find network buffer\n" );
                     }
                 }
             }
@@ -1000,7 +1000,7 @@ xgmac_handle_t pXGMACHandle = ( xgmac_handle_t ) xEmacConfig[ instance ].hxgmac;
 
                 if( xReturn != pdPASS )
                 {
-                    FreeRTOS_printf( ( "Tx Done Get Buff: Can not release pool buffer  \n" ) );
+                    ERROR( "Tx Done Get Buff: Can not release pool buffer  \n" );
                 }
             #endif /* ipconfigZERO_COPY_TX_DRIVER */
         }
@@ -1101,7 +1101,7 @@ uint16_t usIndex;
 
     if( xWantedSize > TX_BUFFER_SIZE )
     {
-        FreeRTOS_printf( ( "Tx Buffer Size more than the Poll Buffer size  \n" ) );
+        ERROR( "Tx Buffer Size more than the Poll Buffer size  \n" );
         return NULL;
     }
 
@@ -1109,7 +1109,8 @@ uint16_t usIndex;
     {
         if( pTxBufferPool->usBufUsedCnt == ( uint16_t ) TX_BUFFER_COUNT )
         {
-            FreeRTOS_printf( ( "Tx Buffer Pool Fully Used \n" ) );
+            ERROR( "Tx Buffer Pool Fully Used \n" );
+            ( void ) xSemaphoreGive( xTxBufSynchSem );
             return NULL;
         }
 
@@ -1139,7 +1140,7 @@ uint16_t usIndex;
 
     if( xWantedSize > RX_BUFFER_SIZE )
     {
-        FreeRTOS_printf( ( "Rx Buffer Size more than the Pool Buffer size  \n" ) );
+        ERROR( "Rx Buffer Size more than the Pool Buffer size  \n" );
         return NULL;
     }
 
@@ -1147,7 +1148,7 @@ uint16_t usIndex;
     {
         if( pRxBufferPool->usBufUsedCnt == ( uint16_t ) RX_BUFFER_COUNT )
         {
-            FreeRTOS_printf( ( "Rx Buffer Pool Fully Used \n" ) );
+            ERROR( "Rx Buffer Pool Fully Used \n" );
             return NULL;
         }
 
@@ -1179,7 +1180,7 @@ uint16_t usIndex;
     {
         if( pTxBufferPool->usBufUsedCnt == 0U )
         {
-            FreeRTOS_printf( ( "Tx Buffer Pool is Already Empty \n" ) );
+            ERROR( "Tx Buffer Pool is Already Empty \n" );
             return xReturn;
         }
 
@@ -1333,7 +1334,7 @@ xgmac_handle_t pXGMACHandle = ( xgmac_handle_t ) xEmacConfig[ instance ].hxgmac;
                 {
                     if( xgmac_update_xgmac_speed_mode( pXGMACHandle, &xPhyDev ) != 0 )
                     {
-                        FreeRTOS_printf( ( "SOCFPGA_XGMAC: Updating Configurations failed....\n" ) );
+                        ERROR( "SOCFPGA_XGMAC: Updating Configurations failed....\n" );
                     }
                 }
                 xStatus = xReadPhyStatus( pxInterface );
@@ -1341,8 +1342,8 @@ xgmac_handle_t pXGMACHandle = ( xgmac_handle_t ) xEmacConfig[ instance ].hxgmac;
                 if( xPHYLinkStatus != xStatus )
                 {
                     xPHYLinkStatus = xStatus;
-                    FreeRTOS_printf( ( "prvEMACHandlerTask: PHY LS now %d\n",
-                                        xPHYLinkStatus != 0uL ) );
+                    INFO( "prvEMACHandlerTask: PHY LS now %d\n",
+                          xPHYLinkStatus != 0uL );
                 }
             }
 

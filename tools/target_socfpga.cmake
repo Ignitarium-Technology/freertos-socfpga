@@ -1,4 +1,3 @@
-
 set(CC_PREFIX aarch64-none-elf-)
 
 set(CMAKE_SYSTEM_NAME Generic)
@@ -67,6 +66,11 @@ endif()
 
 message(STATUS "${BoldWhite}Host System     :  ${CMAKE_SYSTEM_NAME}${ColourReset}")
 message(STATUS "${BoldWhite}C COMPILER      :  ${CMAKE_C_COMPILER}${ColourReset}")
+
+set(CORE_COUNT 4 CACHE STRING "Number of cores to allocate stacks for")
+set(NUM_CORES ${CORE_COUNT})
+
+add_link_options( -Wl,--defsym,_NUM_CORE=${NUM_CORES} )
 
 add_link_options(
     -Wl,--wrap=__retarget_lock_init

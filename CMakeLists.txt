@@ -46,15 +46,8 @@ endif()
 
 message(STATUS "SOC : ${SOC}")
 message(STATUS "Core : ${CORE}")
+message(STATUS "Core Count : ${CORE_COUNT}")
 message(STATUS "Build Type : ${CMAKE_BUILD_TYPE}")
-
-option(SMP "Enable FreeRTOS SMP" OFF)
-
-if(SMP)
-    message(STATUS "SMP : ON")
-else()
-    message(STATUS "SMP : OFF")
-endif()
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/tools/socfpga_build.cmake)
 

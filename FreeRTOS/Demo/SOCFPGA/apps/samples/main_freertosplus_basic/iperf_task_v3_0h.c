@@ -1,6 +1,7 @@
 /*
  * FreeRTOS+TCP V2.3.2
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (C) 2025-2026 Altera Corporation.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -969,6 +970,12 @@ void vIPerfTask( void * pvParameter )
     xSocketSet = FreeRTOS_CreateSocketSet();
 
     vListInitialise( &xTCPClientList );
+
+    /* Wait for the network to be ready before creating the socket */
+    while( FreeRTOS_IsNetworkUp() == pdFALSE )
+    {
+        vTaskDelay( pdMS_TO_TICKS( 100 ) );
+    }
 
 
     #if ( ipconfigIPERF_HAS_TCP != 0 )

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (C) 2025 Altera Corporation
+ * SPDX-FileCopyrightText: Copyright (C) 2025-2026 Altera Corporation
  *
  * SPDX-License-Identifier: MIT-0
  *
@@ -11,15 +11,7 @@
 #include "task.h"
 #include "socfpga_console.h"
 #include "socfpga_interrupt.h"
-#include "arm_gic_reg.h"
-#include "socfpga_interrupt.h"
-#include "socfpga_cache.h"
 #include "portmacro.h"
-
-#define CORE_0_AFFINITY    0U
-#define CORE_1_AFFINITY    1U
-#define CORE_2_AFFINITY    2U
-#define CORE_3_AFFINITY    3U
 
 static void setup_hardware( void )
 {
@@ -33,49 +25,14 @@ static void setup_hardware( void )
 }
 /*-----------------------------------------------------------*/
 
-void run_hello_world( void * )
+void run_hello_world( void *param )
 {
-uint8_t processor_name = 0;
-uint32_t core_aff = 0;
+uint32_t task_id = ( uint32_t ) ( uintptr_t ) param;
+uint32_t core_id = ulGetCoreId();
 
-    vTaskDelay( pdMS_TO_TICKS( 1000 ) );
     do
     {
-        core_aff = gic_reg_get_cpu_affinity() / 256;
-        if( core_aff == CORE_0_AFFINITY || core_aff == CORE_1_AFFINITY )
-        {
-            processor_name = 55;
-        }
-        else if( core_aff == CORE_2_AFFINITY || core_aff == CORE_3_AFFINITY )
-        {
-            processor_name = 76;
-        }
-
-        printf( "\n\rhello world from A%d,Core ID = %d\n\r", processor_name, core_aff );
-        vTaskDelay( pdMS_TO_TICKS( 500 ) );
-    }while( 1 );
-}
-/*-----------------------------------------------------------*/
-
-void run_hello_world_secondary( void * )
-{
-uint8_t processor_name = 0;
-uint32_t core_aff = 0;
-
-    vTaskDelay( pdMS_TO_TICKS( 1000 ) );
-    do
-    {
-        core_aff = gic_reg_get_cpu_affinity() / 256;
-        if( ( core_aff == CORE_0_AFFINITY ) || ( core_aff == CORE_1_AFFINITY ) )
-        {
-            processor_name = 55;
-        }
-        else if( ( core_aff == CORE_2_AFFINITY ) || ( core_aff == CORE_3_AFFINITY ) )
-        {
-            processor_name = 76;
-        }
-
-        printf( "\n\rhello world 2 from A%d,Core ID = %d\n\r", processor_name, core_aff );
+        printf( "\n\rhello world %d, core_id: %d", task_id, core_id );
         vTaskDelay( pdMS_TO_TICKS( 500 ) );
     }while( 1 );
 }
@@ -84,20 +41,41 @@ uint32_t core_aff = 0;
 int main( void )
 {
 BaseType_t xReturn;
+TaskHandle_t xTasks[ configNUMBER_OF_CORES ] = { 0 };
+const char *task_names[] = {
+    "hello_world",
+    "hello_world_2",
+    "hello_world_3",
+    "hello_world_4"
+};
+uint32_t ulIndex = 0;
 
     setup_hardware();
 
-    xReturn = xTaskCreate( run_hello_world, "hello_world", configMINIMAL_STACK_SIZE,
-                           NULL, configMAX_PRIORITIES - 1, NULL );
+    for( ulIndex = 0; ulIndex < configNUMBER_OF_CORES; ulIndex++ )
+    {
+        /* Create tasks based on number of enabled cores, pass the index as an
+         * argument to distinguish between different tasks */
+        xReturn = xTaskCreate( run_hello_world, task_names[ulIndex],
+                configMINIMAL_STACK_SIZE * 2, ( void * ) ( uintptr_t ) ulIndex,
+                configMAX_PRIORITIES - 1, &xTasks[ ulIndex ] );
+        if( xReturn == pdPASS )
+        {
+            #if configNUMBER_OF_CORES > 1
+                vTaskCoreAffinitySet( xTasks[ ulIndex ], ( 1U << ulIndex ) );
+            #endif
+        }
+        else
+        {
+            break;
+        }
+    }
 
-    xReturn = xTaskCreate( run_hello_world_secondary, "hello_world_secondary", configMINIMAL_STACK_SIZE,
-                          NULL, configMAX_PRIORITIES - 1, NULL );
-
-    if( xReturn == 1 )
+    if( ulIndex > 0 )
     {
         vTaskStartScheduler();
     }
-
+    /* Should never reach here */
     return 0;
 }
 /*-----------------------------------------------------------*/

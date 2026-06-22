@@ -125,11 +125,11 @@ void run_sample1(void *arg)
 {
     (void)arg;
 
-    PRINT("Starting sample application 1 %s", SAMPLE_APP1);
+    PRINT("Starting sample application 1 %s", ( char * ) SAMPLE_APP1 );
 
     SAMPLE_APP1();
 
-    PRINT("Completed sample application 1 %s", SAMPLE_APP1);
+    PRINT("Completed sample application 1 %s", ( char * ) SAMPLE_APP1 );
 
     vTaskSuspend(NULL);
 }
@@ -138,11 +138,11 @@ void run_sample2(void *arg)
 {
     (void)arg;
 
-    PRINT("Starting sample application 2 %s", SAMPLE_APP2);
+    PRINT("Starting sample application 2 %s", ( char * ) SAMPLE_APP2 );
 
     SAMPLE_APP2();
 
-    PRINT("Completed sample application 2 %s", SAMPLE_APP2);
+    PRINT("Completed sample application 2 %s", ( char * ) SAMPLE_APP2 );
 
     vTaskSuspend(NULL);
 }
@@ -151,11 +151,11 @@ void run_sample3(void *arg)
 {
     (void)arg;
 
-    PRINT("Starting sample application 3 %s", SAMPLE_APP3);
+    PRINT("Starting sample application 3 %s", ( char * ) SAMPLE_APP3 );
 
     SAMPLE_APP3();
 
-    PRINT("Completed sample application 3 %s", SAMPLE_APP3);
+    PRINT("Completed sample application 3 %s", ( char * ) SAMPLE_APP3 );
 
     vTaskSuspend(NULL);
 }

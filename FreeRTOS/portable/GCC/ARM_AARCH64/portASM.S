@@ -43,6 +43,7 @@
     .extern ullPortYieldRequired
     .extern ullICCEOIR
     .extern ullICCIAR
+    .extern ulCoreMpidrList
     .extern _freertos_vector_table
 
     .global _freertos_vector_table
@@ -123,15 +124,24 @@ _freertos_vector_table:
         b .
     .org (FREERTOS_VBAR + 0x780)
         b .
+
 .macro GET_CORE_ID reg
 #if ( configNUMBER_OF_CORES == 1 )
     MOV     \reg, #0
 #else
-    MRS     \reg, MPIDR_EL1
-    LSR     \reg, \reg, #8
-    AND     \reg, \reg, #0xFF
-    ADD     \reg, \reg, #configBOOT_CORE
-    AND     \reg, \reg, #( configMAX_NUM_CORES - 1 )
+    MRS     X27, MPIDR_EL1
+    AND     X27, X27, #0xFF00
+    MOV     \reg, #0
+1:
+    LDR     X28, =ulCoreMpidrList
+    LDR     W28, [X28, \reg, LSL #2]
+    CMP     W28, W27
+    BEQ     2f
+    ADD     \reg, \reg, #1
+    CMP     \reg, #configNUMBER_OF_CORES
+    BLT     1b
+    MOV     \reg, #0
+2:
 #endif
 .endm
 
@@ -342,6 +352,7 @@ vPortRestoreTaskContext:
 .align 8
 .type FreeRTOS_IRQ_Handler, %function
 FreeRTOS_IRQ_Handler:
+
     /* Save volatile registers. */
     STP     X0, X1, [SP, #-0x10]!
     STP     X2, X3, [SP, #-0x10]!
@@ -353,7 +364,35 @@ FreeRTOS_IRQ_Handler:
     STP     X14, X15, [SP, #-0x10]!
     STP     X16, X17, [SP, #-0x10]!
     STP     X18, X19, [SP, #-0x10]!
-    STP     X29, X30, [SP, #-0x10]!
+    STP     X20, X21, [SP, #-0x10]!
+    STP     X22, X23, [SP, #-0x10]!
+    STP     X24, X25, [SP, #-0x10]!
+    STP     X26, X27, [SP, #-0x10]!
+    STP     X28, X29, [SP, #-0x10]!
+    STP     X30, XZR, [SP, #-0x10]!
+
+    /* Check if current core was executing a task with FPU support. */
+    GET_CORE_ID X10
+    LDR     X5, ullPortTaskHasFPUContextConst
+    LDR     X2, [X5, X10, LSL #3]
+    CMP     X2, #0
+    B.EQ    1f
+    STP     Q0, Q1, [SP, #-0x20]!
+    STP     Q2, Q3, [SP, #-0x20]!
+    STP     Q4, Q5, [SP, #-0x20]!
+    STP     Q6, Q7, [SP, #-0x20]!
+    /* Q8 - Q15 is callee saved */
+    STP     Q16, Q17, [SP, #-0x20]!
+    STP     Q18, Q19, [SP, #-0x20]!
+    STP     Q20, Q21, [SP, #-0x20]!
+    STP     Q22, Q23, [SP, #-0x20]!
+    STP     Q24, Q25, [SP, #-0x20]!
+    STP     Q26, Q27, [SP, #-0x20]!
+    STP     Q28, Q29, [SP, #-0x20]!
+    STP     Q30, Q31, [SP, #-0x20]!
+1:
+    /* Maintain the FPU context indicator across the handler. */
+    STP     X2, XZR, [SP, #-0x10]!
 
     /* Save the SPSR and ELR. */
     MRS     X3, SPSR_EL1
@@ -425,7 +464,29 @@ Skip_ISR_Handler:
     DSB     SY
     ISB     SY
 
-    LDP     X29, X30, [SP], #0x10
+    LDP     X2, XZR, [SP], #0x10  /* FPU context indicator. */
+    CMP     X2, #0
+    B.EQ    2f
+    LDP     Q30, Q31, [SP], #0x20
+    LDP     Q28, Q29, [SP], #0x20
+    LDP     Q26, Q27, [SP], #0x20
+    LDP     Q24, Q25, [SP], #0x20
+    LDP     Q22, Q23, [SP], #0x20
+    LDP     Q20, Q21, [SP], #0x20
+    LDP     Q18, Q19, [SP], #0x20
+    LDP     Q16, Q17, [SP], #0x20
+    LDP     Q6, Q7, [SP], #0x20
+    LDP     Q4, Q5, [SP], #0x20
+    LDP     Q2, Q3, [SP], #0x20
+    LDP     Q0, Q1, [SP], #0x20
+2:
+
+    LDP     X30, XZR, [SP], #0x10
+    LDP     X28, X29, [SP], #0x10
+    LDP     X26, X27, [SP], #0x10
+    LDP     X24, X25, [SP], #0x10
+    LDP     X22, X23, [SP], #0x10
+    LDP     X20, X21, [SP], #0x10
     LDP     X18, X19, [SP], #0x10
     LDP     X16, X17, [SP], #0x10
     LDP     X14, X15, [SP], #0x10
@@ -452,7 +513,29 @@ Exit_IRQ_No_Context_Switch:
     DSB     SY
     ISB     SY
 
-    LDP     X29, X30, [SP], #0x10
+    LDP     X2, XZR, [SP], #0x10  /* FPU context indicator. */
+    CMP     X2, #0
+    B.EQ    3f
+    LDP     Q30, Q31, [SP], #0x20
+    LDP     Q28, Q29, [SP], #0x20
+    LDP     Q26, Q27, [SP], #0x20
+    LDP     Q24, Q25, [SP], #0x20
+    LDP     Q22, Q23, [SP], #0x20
+    LDP     Q20, Q21, [SP], #0x20
+    LDP     Q18, Q19, [SP], #0x20
+    LDP     Q16, Q17, [SP], #0x20
+    LDP     Q6, Q7, [SP], #0x20
+    LDP     Q4, Q5, [SP], #0x20
+    LDP     Q2, Q3, [SP], #0x20
+    LDP     Q0, Q1, [SP], #0x20
+3:
+
+    LDP     X30, XZR, [SP], #0x10
+    LDP     X28, X29, [SP], #0x10
+    LDP     X26, X27, [SP], #0x10
+    LDP     X24, X25, [SP], #0x10
+    LDP     X22, X23, [SP], #0x10
+    LDP     X20, X21, [SP], #0x10
     LDP     X18, X19, [SP], #0x10
     LDP     X16, X17, [SP], #0x10
     LDP     X14, X15, [SP], #0x10

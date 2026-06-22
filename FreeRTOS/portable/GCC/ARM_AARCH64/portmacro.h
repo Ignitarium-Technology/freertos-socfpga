@@ -188,10 +188,10 @@ interrupts that have a priority below configMAX_API_CALL_INTERRUPT_PRIORITY. */
     #define portGET_CORE_ID()                         ulGetCoreId()
     extern volatile uint64_t ullCriticalNesting[ configNUMBER_OF_CORES ];
     extern uint64_t ullPortInterruptNesting[ configNUMBER_OF_CORES ];
-    #define portGET_CRITICAL_NESTING_COUNT()          ( ullCriticalNesting[ portGET_CORE_ID() ] )
-    #define portSET_CRITICAL_NESTING_COUNT( x )       ( ullCriticalNesting[ portGET_CORE_ID() ] = ( x ) )
-    #define portINCREMENT_CRITICAL_NESTING_COUNT()    ( ullCriticalNesting[ portGET_CORE_ID() ]++ )
-    #define portDECREMENT_CRITICAL_NESTING_COUNT()    ( ullCriticalNesting[ portGET_CORE_ID() ]-- )
+    #define portGET_CRITICAL_NESTING_COUNT( x )          ( ullCriticalNesting[ x ] )
+    #define portSET_CRITICAL_NESTING_COUNT( x, y )       ( ullCriticalNesting[ x ] = ( y ) )
+    #define portINCREMENT_CRITICAL_NESTING_COUNT( x )    ( ullCriticalNesting[ x ]++ )
+    #define portDECREMENT_CRITICAL_NESTING_COUNT( x )    ( ullCriticalNesting[ x ]-- )
     #define portENTER_CRITICAL()                      vTaskEnterCritical()
     #define portEXIT_CRITICAL()                       vTaskExitCritical()
     #define portASSERT_IF_IN_ISR()                    configASSERT( xPortIsInsideInterrupt() == pdFALSE )
@@ -289,6 +289,7 @@ enum {
     PORT_ISR_SPIN_LOCK,
     PORT_TASK_SPIN_LOCK,
     PORT_STDLIB_SPIN_LOCK_MALLOC,
+    PORT_STDLIB_SPIN_LOCK_SETUP,
     PORT_STDLIB_SPIN_LOCK_STDIN,
     PORT_STDLIB_SPIN_LOCK_STDOUT,
     PORT_STDLIB_SPIN_LOCK_STDERR,
@@ -302,17 +303,18 @@ typedef struct
     uint32_t ulRecurCount;
 }SpinLock_t;
 
-void vGetLock(uint32_t ulLockType);
-int vReleaseLock(uint32_t ulLockType);
+void vGetLock( uint32_t ulLockType, uint32_t ulCoreId );
+int vReleaseLock( uint32_t ulLockType, uint32_t ulCoreId );
 uint32_t ulGetCoreId( void );
 void vYieldCore( uint32_t ulCoreId );
-#define portGET_ISR_LOCK()        (vGetLock(PORT_ISR_SPIN_LOCK))
-#define portRELEASE_ISR_LOCK()    ((void)vReleaseLock(PORT_ISR_SPIN_LOCK))
-#define portGET_TASK_LOCK()       (vGetLock(PORT_TASK_SPIN_LOCK))
-#define portRELEASE_TASK_LOCK()   ((void)vReleaseLock(PORT_TASK_SPIN_LOCK))
+uint32_t ulGetSchedStateOnCore();
+#define portGET_ISR_LOCK( core_id )        (vGetLock(PORT_ISR_SPIN_LOCK, core_id))
+#define portRELEASE_ISR_LOCK( core_id )    ((void)vReleaseLock(PORT_ISR_SPIN_LOCK, core_id))
+#define portGET_TASK_LOCK( core_id )       (vGetLock(PORT_TASK_SPIN_LOCK, core_id))
+#define portRELEASE_TASK_LOCK( core_id )   ((void)vReleaseLock(PORT_TASK_SPIN_LOCK, core_id))
 
-#define portGET_STDLIB_LOCK(x)       (vGetLock(PORT_STDLIB_SPIN_LOCK_MALLOC + x))
-#define portRELEASE_STDLIB_LOCK(x)   (vReleaseLock(PORT_STDLIB_SPIN_LOCK_MALLOC + x))
+#define portGET_STDLIB_LOCK(x, core_id)       (vGetLock(PORT_STDLIB_SPIN_LOCK_MALLOC + x, core_id))
+#define portRELEASE_STDLIB_LOCK(x, core_id)   (vReleaseLock(PORT_STDLIB_SPIN_LOCK_MALLOC + x, core_id))
 extern void vPortSocfpgaTimerInit( void );
 extern void interrupt_irq_handler( unsigned int ulInterruptID );
 BaseType_t xPortIsInsideInterrupt( void );

@@ -31,6 +31,8 @@
 #ifndef FREERTOS_CONFIG_H
 #define FREERTOS_CONFIG_H
 
+#include "FreeRTOSConfigSmp.h"
+
 /*-----------------------------------------------------------
  * Application specific definitions.
  *
@@ -196,20 +198,17 @@ standard names. */
 #define configSTART_REGISTER_TESTS                1
 #define configSTART_DELETE_SELF_TESTS             1
 
-#if defined(SMP) && (SMP != 0)
-#define configNUMBER_OF_CORES                   2
-#define configUSE_CORE_AFFINITY                 1
-#else
-#define configNUMBER_OF_CORES                   1
-#define configUSE_CORE_AFFINITY                 0
+#ifndef configNUMBER_OF_CORES
+    #define configNUMBER_OF_CORES               configSMP_ENABLED_CORE_COUNT
 #endif
+
+#if ( configNUMBER_OF_CORES > 1 )
+    #define configUSE_CORE_AFFINITY             1
+    #define configRUN_MULTIPLE_PRIORITIES       1
+#endif
+
 #define configUSE_PASSIVE_IDLE_HOOK             0
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
-#define configMAX_NUM_CORES                     4
-#define configRUN_MULTIPLE_PRIORITIES           1
-#ifndef configBOOT_CORE
-    #define configBOOT_CORE                     0
-#endif
 
 /* Hook function related definitions. */
 #define configUSE_IDLE_HOOK                     1

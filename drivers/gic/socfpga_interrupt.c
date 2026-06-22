@@ -46,7 +46,7 @@ void gic_default_interrupt_handler(void *data) {
 #endif
 }
 
-void interrupt_enable_core_rdis(void)
+void interrupt_enable_core_redis(void)
 {
     /* Get the ID of the Redistributor connected to this PE. */
     uint32_t gic_redis_id = (uint32_t)gic_get_redist_id(
@@ -77,7 +77,7 @@ void interrupt_init_gic(void)
     }
 
     /* Enable the redistributor of the current core */
-    interrupt_enable_core_rdis();
+    interrupt_enable_core_redis();
 }
 
 socfpga_interrupt_err_t interrupt_ppi_enable(socfpga_hpu_interrupt_t id,

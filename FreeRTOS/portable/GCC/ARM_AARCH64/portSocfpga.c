@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (C) 2025 Altera Corporation
+ * SPDX-FileCopyrightText: Copyright (C) 2025-2026 Altera Corporation
  *
  * SPDX-License-Identifier: MIT-0
  *
@@ -15,7 +15,6 @@
 
 #define SOCFPGA_CNTV_CTL_ENABLE         ( ( 1U ) << 0 )
 #define TMR_DELAY_SECS                  ( 1U )
-#define PSCI_CPU_ON_FID                 ( 0xC4000003U )
 /*-----------------------------------------------------------*/
 
 static uint64_t ullCounterFreq = 0;

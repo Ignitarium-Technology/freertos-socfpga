@@ -63,7 +63,7 @@ static void console_flush_task(void *flags)
  * context switch here
  */
 static void console_write_complete(osal_pipe_t pipe, long is_isr,
-                                   long *need_ctx_switch)
+        long *need_ctx_switch)
 {
     (void)pipe;
     (void)is_isr;
@@ -71,7 +71,7 @@ static void console_write_complete(osal_pipe_t pipe, long is_isr,
 }
 
 static void console_read_complete(osal_pipe_t pipe, BaseType_t is_isr,
-                                   BaseType_t *need_ctx_switch)
+        BaseType_t *need_ctx_switch)
 {
     (void)pipe;
     (void)is_isr;
@@ -86,6 +86,14 @@ int console_init(uint32_t id, const char *config_str)
     int num_stop_bits;
     int ret;
 
+    /*
+     * newlib performs stdio lock initialization only when it requires it. To
+     * avoid contention when multiple cores performing stdio operations, we
+     * call a fflush here before the scheduler starts.
+     */
+    fflush(stdout);
+    fflush(stdin);
+    fflush(stderr);
     if (hconsole_uart != NULL)
     {
         return -EBUSY;
